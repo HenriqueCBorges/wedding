@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reserve a Data - Stefania e Henrique</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            height: 100%;
+            font-family: 'Montserrat', sans-serif;
+            background-color: #Fdfbf7;
+            /* Cor de fundo creme inspirada na imagem */
+            color: #1a2b3c;
+            /* Azul marinho escuro para os textos */
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        /* Lado esquerdo - Imagem dos Noivos */
+        .left-side {
+            width: 45%;
+            /* Imagem de placeholder elegante (você pode trocar a URL pela foto de vocês) */
+            background-image: url('https://images.unsplash.com/photo-1519741497674-611481863552?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+
+        /* Efeito sutil de transição entre a imagem e o fundo para simular a borda irregular */
+        .left-side::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50px;
+            height: 100%;
+            background: linear-gradient(to right, rgba(253, 251, 247, 0) 0%, rgba(253, 251, 247, 1) 100%);
+        }
+
+        /* Lado direito - Conteúdo */
+        .right-side {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            background-image: url('data:image/svg+xml;utf8,<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><path fill="rgba(163, 177, 155, 0.1)" d="M45.7,-76.3C58.9,-69.3,69.1,-55.3,77.2,-40.7C85.3,-26.1,91.3,-10.9,89.5,3.5C87.7,17.9,78.1,31.4,67.6,43.2C57.1,55,45.7,65.1,32.3,71.7C18.9,78.3,3.5,81.4,-11.2,79.5C-25.9,77.6,-39.9,70.7,-52.1,60.8C-64.3,50.9,-74.7,38.1,-80.7,23.3C-86.7,8.5,-88.3,-8.3,-83.4,-23.4C-78.5,-38.5,-67.1,-51.9,-53.4,-58.8C-39.7,-65.7,-23.7,-66.1,-8.2,-55.8C7.3,-45.5,22.6,-24.5,45.7,-76.3Z" transform="translate(100 100) scale(1.2)" /></svg>');
+            background-repeat: no-repeat;
+            background-position: bottom left;
+        }
+
+        /* Nomes */
+        .names {
+            font-family: 'Playfair Display', serif;
+            font-size: 4.5rem;
+            line-height: 1.1;
+            margin-bottom: 10px;
+            color: #162438;
+        }
+
+        .names span {
+            display: inline-block;
+        }
+
+        /* Divisor com corações/folhas */
+        .divider {
+            font-size: 1.2rem;
+            color: #a3b19b;
+            margin: 20px 0;
+            letter-spacing: 5px;
+        }
+
+        /* Título Reserve a Data */
+        .save-date {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+
+        /* Bloco da Data */
+        .date-block {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .date-text {
+            font-size: 0.9rem;
+            letter-spacing: 3px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .date-number {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: #162438;
+        }
+
+        /* Texto de convite */
+        .invite-text {
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            line-height: 1.8;
+            margin-bottom: 35px;
+            color: #555;
+            text-transform: uppercase;
+        }
+
+        /* Contagem Regressiva (Substituindo o botão) */
+        .countdown-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            background: rgba(235, 238, 230, 0.6);
+            padding: 20px 25px;
+            border-radius: 15px;
+            border: 1px solid #dce0d9;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+        }
+
+        .time-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 65px;
+        }
+
+        .time-box .number {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #162438;
+        }
+
+        .time-box .label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* Responsividade para celulares */
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .left-side {
+                width: 100%;
+                height: 50vh;
+            }
+
+            .left-side::after {
+                width: 100%;
+                height: 40px;
+                top: auto;
+                bottom: 0;
+                background: linear-gradient(to bottom, rgba(253, 251, 247, 0) 0%, rgba(253, 251, 247, 1) 100%);
+            }
+
+            .right-side {
+                width: 100%;
+                padding: 30px 15px;
+            }
+
+            .names {
+                font-size: 3.5rem;
+            }
+
+            .date-number {
+                font-size: 2.8rem;
+            }
+
+            .countdown-container {
+                gap: 8px;
+                padding: 15px 10px;
+            }
+
+            .time-box {
+                min-width: 55px;
+            }
+
+            .time-box .number {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="left-side"></div>
+
+        <div class="right-side">
+            <h1 class="names">
+                Stefania &<br>Henrique
+            </h1>
+
+            <div class="divider">🌿 🤍 🌿</div>
+
+            <h2 class="save-date">Nosso casamento ❤️</h2>
+
+            <div class="date-block">
+                <span class="date-text">Domingo</span>
+                <span class="date-number">03 Out.</span>
+                <span class="date-text">15:30 Hs.</span>
+            </div>
+
+            <p class="invite-text">
+                Contagem regressiva para<br>
+                celebração do nosso casamento 💍
+            </p>
+
+            <div class="countdown-container">
+                <div class="time-box">
+                    <span class="number" id="years">00</span>
+                    <span class="label">Anos</span>
+                </div>
+                <div class="time-box">
+                    <span class="number" id="months">00</span>
+                    <span class="label">Meses</span>
+                </div>
+                <div class="time-box">
+                    <span class="number" id="days">00</span>
+                    <span class="label">Dias</span>
+                </div>
+                <div class="time-box">
+                    <span class="number" id="hours">00</span>
+                    <span class="label">Horas</span>
+                </div>
+                <div class="time-box">
+                    <span class="number" id="minutes">00</span>
+                    <span class="label">Minutos</span>
+                </div>
+                <div class="time-box">
+                    <span class="number" id="seconds">00</span>
+                    <span class="label">Segundos</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Define a data alvo: Ano, Mês (0 indexado = 9 para Outubro), Dia, Hora, Minuto, Segundo
+        const targetDate = new Date(2027, 9, 3, 15, 30, 0);
+
+        function updateDetailedCountdown() {
+            const now = new Date();
+
+            // Se a data já chegou, zera tudo
+            if (now >= targetDate) {
+                document.querySelectorAll('.number').forEach(el => el.innerText = "00");
+                return;
+            }
+
+            // Cálculos precisos baseados no calendário real
+            let years = targetDate.getFullYear() - now.getFullYear();
+            let months = targetDate.getMonth() - now.getMonth();
+            let days = targetDate.getDate() - now.getDate();
+            let hours = targetDate.getHours() - now.getHours();
+            let minutes = targetDate.getMinutes() - now.getMinutes();
+            let seconds = targetDate.getSeconds() - now.getSeconds();
+
+            // Ajustes cascata para valores negativos
+            if (seconds < 0) {
+                seconds += 60;
+                minutes--;
+            }
+            if (minutes < 0) {
+                minutes += 60;
+                hours--;
+            }
+            if (hours < 0) {
+                hours += 24;
+                days--;
+            }
+            if (days < 0) {
+                // Pega a quantidade de dias do mês anterior ao mês alvo
+                const prevMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 0);
+                days += prevMonth.getDate();
+                months--;
+            }
+            if (months < 0) {
+                months += 12;
+                years--;
+            }
+
+            // Formatação com zero à esquerda
+            document.getElementById("years").innerText = String(years).padStart(2, '0');
+            document.getElementById("months").innerText = String(months).padStart(2, '0');
+            document.getElementById("days").innerText = String(days).padStart(2, '0');
+            document.getElementById("hours").innerText = String(hours).padStart(2, '0');
+            document.getElementById("minutes").innerText = String(minutes).padStart(2, '0');
+            document.getElementById("seconds").innerText = String(seconds).padStart(2, '0');
+        }
+
+        // Executa imediatamente e depois a cada segundo
+        updateDetailedCountdown();
+        setInterval(updateDetailedCountdown, 1000);
+    </script>
+</body>
+
+</html>
