@@ -20,16 +20,16 @@ npm run preview
 
 ## Funcionalidades
 
-- Contagem regressiva real para 22/08/2027 às 15h30 (horário de Brasília)
+- Contagem regressiva em anos, meses, dias, horas, minutos e segundos para 22/08/2027 às 15h30 (horário de Brasília)
 - Animação Three.js com partículas discretas, respeitando preferência por movimento reduzido
-- Animações de entrada com IntersectionObserver
+- Abertura animada, parallax, faixa em movimento, galeria com lightbox e animações de entrada com IntersectionObserver
 - Menu responsivo, seção do local com link para o Google Maps
 - Galeria de imagens conceituais e seção de presentes
 - Formulário RSVP **somente demonstrativo**: não salva, não envia e não confirma presença de verdade
 
 ## Personalização
 
-- `public/logo-original.png`: monograma fornecido pelo casal.
+- `public/logo.png` / `public/logo-light.png`: monograma do casal com fundo transparente (versão azul e versão clara para fundos escuros).
 - `public/art/`: recortes de uma composição artística conceitual gerada para o protótipo; **não representam fotos verificadas do Cerimonial Casa Rio**.
 - `src/App.vue`: textos, data, mapa, fotos e formulário.
 - `src/style.css`: cores, tipografia, layout e animações.
