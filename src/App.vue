@@ -16,7 +16,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Expand,
+  ArrowLeft,
 } from 'lucide-vue-next';
+import { findInvite, normalizeCode } from './guests.js';
 
 const reducedMotion =
   typeof window !== 'undefined' &&
@@ -25,10 +27,6 @@ const reducedMotion =
 /* ---------- Estado geral ---------- */
 const mobileMenu = ref(false);
 const rsvpOpen = ref(false);
-const submitted = ref(false);
-const guestName = ref('');
-const guestCount = ref('1');
-const attendance = ref('sim');
 const introDone = ref(reducedMotion);
 const scrolled = ref(false);
 const headerHidden = ref(false);
@@ -137,13 +135,60 @@ function openRSVP() {
   rsvpOpen.value = true;
   closeMenu();
 }
-function closeRSVP() {
-  rsvpOpen.value = false;
-  setTimeout(() => (submitted.value = false), 400);
+
+/* ---------- RSVP: código → convidados → confirmação ---------- */
+// Demonstração local: não salva nem envia dados.
+const rsvpStep = ref('code'); // 'code' | 'guests' | 'done'
+const inviteCode = ref('');
+const codeError = ref('');
+const invite = ref(null);
+const answers = ref([]); // 'sim' | 'nao' | null, um por convidado
+const allAnswered = computed(() => answers.value.length > 0 && answers.value.every(Boolean));
+const confirmedGuests = computed(() =>
+  invite.value ? invite.value.guests.filter((_, i) => answers.value[i] === 'sim') : [],
+);
+const declinedGuests = computed(() =>
+  invite.value ? invite.value.guests.filter((_, i) => answers.value[i] === 'nao') : [],
+);
+
+function onCodeInput(e) {
+  inviteCode.value = normalizeCode(e.target.value);
+  e.target.value = inviteCode.value;
+  codeError.value = '';
+}
+function submitCode() {
+  const found = findInvite(inviteCode.value);
+  if (!found) {
+    codeError.value = 'Código não encontrado. Confira o código do seu convite.';
+    return;
+  }
+  invite.value = found;
+  answers.value = found.guests.map(() => null);
+  rsvpStep.value = 'guests';
+}
+function setAnswer(i, value) {
+  answers.value[i] = value;
+}
+function setAllAnswers(value) {
+  answers.value = answers.value.map(() => value);
 }
 function submitRSVP() {
-  submitted.value = true;
-} // Demonstração local: não salva nem envia dados.
+  if (allAnswered.value) rsvpStep.value = 'done';
+}
+function backToCode() {
+  rsvpStep.value = 'code';
+  codeError.value = '';
+}
+function closeRSVP() {
+  rsvpOpen.value = false;
+  setTimeout(() => {
+    rsvpStep.value = 'code';
+    inviteCode.value = '';
+    codeError.value = '';
+    invite.value = null;
+    answers.value = [];
+  }, 400);
+}
 function openLightbox(i) {
   lightbox.value = i;
 }
@@ -585,49 +630,120 @@ onUnmounted(() => {
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-title">
           <button class="modal-close" aria-label="Fechar" @click="closeRSVP"><X :size="22" /></button>
           <Transition name="swap" mode="out-in">
-            <div v-if="!submitted" key="form">
-              <p class="eyebrow">RSVP</p>
+            <!-- Etapa 1: código do convite -->
+            <div v-if="rsvpStep === 'code'" key="code">
+              <p class="eyebrow">RSVP · Etapa 1 de 2</p>
               <h2 id="rsvp-title">Confirme sua <i>presença</i></h2>
-              <p class="modal-lead">Preencha os dados abaixo para visualizar a confirmação de demonstração.</p>
-              <form @submit.prevent="submitRSVP">
-                <label
-                  >Seu nome completo<input
-                    v-model.trim="guestName"
-                    required
-                    minlength="2"
-                    maxlength="100"
-                    placeholder="Nome e sobrenome"
-                /></label>
-                <label
-                  >Você estará presente?<select v-model="attendance">
-                    <option value="sim">Sim, estarei presente!</option>
-                    <option value="nao">Infelizmente não poderei ir</option>
-                  </select></label
-                >
+              <p class="modal-lead">Digite o código de 6 caracteres que está no seu convite.</p>
+              <form @submit.prevent="submitCode">
+                <label for="invite-code">Código do convite</label>
+                <input
+                  id="invite-code"
+                  :class="['code-input', { invalid: codeError }]"
+                  :value="inviteCode"
+                  required
+                  minlength="6"
+                  maxlength="6"
+                  autocomplete="off"
+                  autocapitalize="characters"
+                  spellcheck="false"
+                  placeholder="ABC123"
+                  :aria-invalid="!!codeError"
+                  aria-describedby="code-error"
+                  @input="onCodeInput"
+                />
                 <Transition name="fade-height">
-                  <label v-if="attendance === 'sim'"
-                    >Quantidade de pessoas (incluindo você)<select v-model="guestCount">
-                      <option value="1">1 pessoa</option>
-                      <option value="2">2 pessoas</option>
-                      <option value="3">3 pessoas</option>
-                      <option value="4">4 pessoas</option>
-                    </select></label
-                  >
+                  <p v-if="codeError" id="code-error" class="form-error" role="alert">{{ codeError }}</p>
                 </Transition>
-                <button class="btn btn-navy" type="submit">Continuar <ArrowUpRight :size="16" /></button>
+                <button class="btn btn-navy" type="submit" :disabled="inviteCode.length < 6">
+                  Continuar <ArrowUpRight :size="16" />
+                </button>
               </form>
               <small class="modal-disclaimer"
-                >Protótipo: esta confirmação não é enviada nem armazenada. A quantidade de acompanhantes
-                depende de validação futura.</small
+                >Protótipo: a confirmação não é enviada nem armazenada. Para testar, use os códigos
+                <b>ABC123</b>, <b>XYZ789</b> ou <b>FAM456</b>.</small
               >
             </div>
-            <div v-else key="ok" class="modal-success">
-              <span class="success-check"><Check :size="34" /></span>
-              <h2>Obrigado, {{ guestName.split(' ')[0] }}!</h2>
-              <p>
-                Esta é uma demonstração visual. Para receber confirmações reais, será necessário conectar o
-                formulário a um serviço de dados.
+
+            <!-- Etapa 2: convidados do convite -->
+            <div v-else-if="rsvpStep === 'guests'" key="guests">
+              <button class="back-link" type="button" @click="backToCode">
+                <ArrowLeft :size="15" /> Trocar código
+              </button>
+              <p class="eyebrow">RSVP · Etapa 2 de 2</p>
+              <h2 id="rsvp-title">Olá, <i>{{ invite.label }}</i></h2>
+              <p class="modal-lead">
+                {{
+                  invite.guests.length > 1
+                    ? 'Este convite inclui as pessoas abaixo. Conte para nós quem poderá celebrar conosco.'
+                    : 'Conte para nós se poderá celebrar conosco.'
+                }}
               </p>
+              <form @submit.prevent="submitRSVP">
+                <div v-if="invite.guests.length > 1" class="bulk-actions">
+                  <button type="button" @click="setAllAnswers('sim')">Todos vão</button>
+                  <button type="button" @click="setAllAnswers('nao')">Ninguém poderá ir</button>
+                </div>
+                <ul class="guest-list">
+                  <li
+                    v-for="(name, i) in invite.guests"
+                    :key="name"
+                    class="guest-row"
+                    :style="{ '--i': i }"
+                  >
+                    <span class="guest-name">{{ name }}</span>
+                    <div class="choice" role="radiogroup" :aria-label="`Presença de ${name}`">
+                      <button
+                        type="button"
+                        role="radio"
+                        :aria-checked="answers[i] === 'sim'"
+                        :class="['choice-btn yes', { on: answers[i] === 'sim' }]"
+                        @click="setAnswer(i, 'sim')"
+                      >
+                        <Check :size="14" /> Vou
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        :aria-checked="answers[i] === 'nao'"
+                        :class="['choice-btn no', { on: answers[i] === 'nao' }]"
+                        @click="setAnswer(i, 'nao')"
+                      >
+                        <X :size="14" /> Não vou
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+                <button class="btn btn-navy" type="submit" :disabled="!allAnswered">
+                  Confirmar resposta <ArrowUpRight :size="16" />
+                </button>
+                <p v-if="!allAnswered" class="form-hint">Responda para cada convidado para continuar.</p>
+              </form>
+            </div>
+
+            <!-- Concluído -->
+            <div v-else key="done" class="modal-success">
+              <span class="success-check"><Check :size="34" /></span>
+              <h2 id="rsvp-title">{{ confirmedGuests.length ? 'Obrigado!' : 'Sentiremos sua falta' }}</h2>
+              <p v-if="confirmedGuests.length">
+                Que alegria! Estamos ansiosos para celebrar com
+                {{ confirmedGuests.length > 1 ? 'vocês' : 'você' }}.
+              </p>
+              <p v-else>Obrigado por nos avisar. Você estará em nossos corações nesse dia.</p>
+              <div class="rsvp-summary">
+                <div v-if="confirmedGuests.length">
+                  <small>Presença confirmada</small>
+                  <span v-for="name in confirmedGuests" :key="name" class="tag yes">{{ name }}</span>
+                </div>
+                <div v-if="declinedGuests.length">
+                  <small>Não poderão ir</small>
+                  <span v-for="name in declinedGuests" :key="name" class="tag no">{{ name }}</span>
+                </div>
+              </div>
+              <small class="modal-disclaimer"
+                >Demonstração: para receber confirmações reais, será necessário conectar o formulário a um
+                serviço de dados.</small
+              >
               <button class="btn btn-outline" @click="closeRSVP">Fechar</button>
             </div>
           </Transition>
