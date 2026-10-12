@@ -1,0 +1,153 @@
+// Lista de presentes (cotas em Pix). Valores em reais.
+export const gifts = [
+  {
+    id: 'engov',
+    emoji: '🥥',
+    title: 'Kit ressaca pós-festa',
+    description: 'Engov, água de coco e uma coxinha estrategicamente guardada para o dia seguinte.',
+    price: 150,
+  },
+  {
+    id: 'valsa',
+    emoji: '🕺',
+    title: 'Aulas de dança para o noivo',
+    description: 'Para a valsa não virar um vídeo viral pelos motivos errados.',
+    price: 180,
+  },
+  {
+    id: 'controle',
+    emoji: '📺',
+    title: 'Um controle remoto para cada um',
+    description: 'Investimento direto na paz conjugal. Fim da disputa pelo sofá.',
+    price: 210,
+  },
+  {
+    id: 'pave',
+    emoji: '🍰',
+    title: 'Cota do pavê',
+    description: 'Garante que o tio do "é pavê ou pacomê?" seja servido primeiro e fique quietinho.',
+    price: 250,
+  },
+  {
+    id: 'moveis',
+    emoji: '🪛',
+    title: 'Montador de móveis profissional',
+    description: 'Porque montar guarda-roupa juntos é o verdadeiro teste do casamento.',
+    price: 280,
+  },
+  {
+    id: 'pizza',
+    emoji: '🍕',
+    title: 'Vale-pizza do primeiro mês',
+    description: 'Ninguém vai cozinhar nos primeiros 30 dias. Isso não é uma pergunta.',
+    price: 300,
+  },
+  {
+    id: 'streaming',
+    emoji: '🍿',
+    title: 'Mediador de streaming',
+    description: 'Para escolher o filme em menos de 2 horas de rolagem no catálogo.',
+    price: 350,
+  },
+  {
+    id: 'pet',
+    emoji: '🐶',
+    title: 'Babá do pet durante a lua de mel',
+    description: 'Ele vai ficar bem. Os noivos é que vão mandar mensagem a cada 15 minutos.',
+    price: 400,
+  },
+  {
+    id: 'aniversario',
+    emoji: '📅',
+    title: 'Seguro "esqueci a data"',
+    description: 'Cobertura completa para o dia em que o noivo esquecer o aniversário de casamento.',
+    price: 450,
+  },
+  {
+    id: 'lencol',
+    emoji: '🛏️',
+    title: 'Curso: dobrar lençol de elástico',
+    description: 'Habilidade que nenhum ser humano dominou. Os noivos serão os primeiros.',
+    price: 500,
+  },
+  {
+    id: 'cotovelo',
+    emoji: '✈️',
+    title: 'Upgrade anti-cotovelada no avião',
+    description: 'Lua de mel começa com espaço para as pernas e sem disputa pelo braço da poltrona.',
+    price: 550,
+  },
+  {
+    id: 'bebe',
+    emoji: '🤫',
+    title: 'Jantar sem "e o bebê, quando vem?"',
+    description: 'Uma noite inteira sem essa pergunta. Raríssimo e, portanto, caro.',
+    price: 600,
+  },
+  {
+    id: 'spa',
+    emoji: '🧖',
+    title: 'Spa pós-organização do casamento',
+    description: 'Para recuperar o casal depois de 18 meses de planilhas, orçamentos e degustações.',
+    price: 680,
+  },
+  {
+    id: 'iate',
+    emoji: '🛥️',
+    title: 'Passeio no iate do Elon Musk',
+    description: 'Ele ainda não sabe, mas a gente acredita no poder da manifestação.',
+    price: 730,
+  },
+  {
+    id: 'geladeira',
+    emoji: '🧊',
+    title: 'Fundo "geladeira cheia"',
+    description: 'Para a geladeira ter algo além de água, ketchup e um limão solitário.',
+    price: 800,
+  },
+  {
+    id: 'sofa',
+    emoji: '🛋️',
+    title: 'Sofá da primeira briga',
+    description: 'Confortável o suficiente para quem for dormir na sala. Reclinável, por segurança.',
+    price: 900,
+  },
+  {
+    id: 'mar',
+    emoji: '🌅',
+    title: 'Noite com vista para o mar',
+    description: 'Na lua de mel, sem Wi-Fi do trabalho e sem grupo da família no celular.',
+    price: 1000,
+  },
+  {
+    id: 'janela',
+    emoji: '🪟',
+    title: 'Cota da passagem da lua de mel',
+    description: 'Com assento na janela garantido para os dois (ainda estamos vendo como).',
+    price: 1200,
+  },
+  {
+    id: 'musica',
+    emoji: '🎤',
+    title: 'DJ obedece você por uma música',
+    description: 'Você escolhe uma música da pista. Exceto "Evidências" — essa já está garantida.',
+    price: 1350,
+  },
+  {
+    id: 'vip',
+    emoji: '👑',
+    title: 'Convidado preferido oficial',
+    description: 'Seu nome citado no discurso dos noivos como "o convidado favorito". Não conte aos outros.',
+    price: 1500,
+  },
+];
+
+export const priceRanges = [
+  { id: 'todos', label: 'Todos', test: () => true },
+  { id: 'ate300', label: 'Até R$ 300', test: (p) => p <= 300 },
+  { id: '300a700', label: 'R$ 301 a 700', test: (p) => p > 300 && p <= 700 },
+  { id: 'acima700', label: 'Acima de R$ 700', test: (p) => p > 700 },
+];
+
+const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+export const formatPrice = (value) => brl.format(value);

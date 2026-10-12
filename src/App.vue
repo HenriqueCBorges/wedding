@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import * as THREE from 'three';
 import {
   Menu,
@@ -19,10 +19,8 @@ import {
   ArrowLeft,
 } from 'lucide-vue-next';
 import { findInvite, normalizeCode } from './guests.js';
-
-const reducedMotion =
-  typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+import { vReveal, reducedMotion } from './reveal.js';
+import GiftsPage from './GiftsPage.vue';
 
 /* ---------- Estado geral ---------- */
 const mobileMenu = ref(false);
@@ -38,8 +36,32 @@ const navLinks = [
   { id: 'inicio', label: 'Início' },
   { id: 'cerimonia', label: 'O grande dia' },
   { id: 'galeria', label: 'Galeria' },
-  { id: 'presentes', label: 'Presentes' },
+  { id: 'presentes', label: 'Presentes', href: '#/presentes' },
 ];
+
+/* ---------- Páginas: início e lista de presentes (#/presentes) ---------- */
+const GIFTS_HASH = '#/presentes';
+const page = ref(typeof location !== 'undefined' && location.hash === GIFTS_HASH ? 'gifts' : 'home');
+const activeNav = computed(() => (page.value === 'gifts' ? 'presentes' : activeSection.value));
+function onHashChange() {
+  const hash = location.hash;
+  if (hash === GIFTS_HASH) {
+    page.value = 'gifts';
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    return;
+  }
+  const wasGifts = page.value === 'gifts';
+  page.value = 'home';
+  if (!wasGifts) return;
+  // a página inicial estava oculta: rola até a âncora depois que ela reaparecer
+  nextTick(() => {
+    if (!renderer) initThree();
+    else resizeListener?.();
+    const target = hash && document.getElementById(hash.slice(1));
+    if (target) target.scrollIntoView({ behavior: 'instant' });
+    else window.scrollTo({ top: 0, behavior: 'instant' });
+  });
+}
 
 /* ---------- Contagem regressiva (anos, meses, dias, horas, minutos, segundos) ---------- */
 // Cálculo feito no "relógio de parede" de Brasília (UTC-3), independente do fuso do visitante.
@@ -208,29 +230,6 @@ watch([rsvpOpen, lightbox, mobileMenu], ([r, l, m]) => {
   document.documentElement.classList.toggle('no-scroll', r || l >= 0 || m);
 });
 
-/* ---------- Revelação ao rolar (v-reveal) ---------- */
-const revealObserver =
-  typeof IntersectionObserver !== 'undefined'
-    ? new IntersectionObserver(
-        (entries) =>
-          entries.forEach((e) => {
-            if (e.isIntersecting) {
-              e.target.classList.add('visible');
-              revealObserver.unobserve(e.target);
-            }
-          }),
-        { threshold: 0.15, rootMargin: '0px 0px -40px 0px' },
-      )
-    : null;
-const vReveal = {
-  mounted(el, { arg, value }) {
-    el.classList.add('reveal', `reveal-${arg || 'up'}`);
-    if (value) el.style.setProperty('--delay', `${value}ms`);
-    if (revealObserver && !reducedMotion) revealObserver.observe(el);
-    else el.classList.add('visible');
-  },
-};
-
 /* ---------- Rolagem: header, progresso e parallax ---------- */
 let lastY = 0;
 let ticking = false;
@@ -326,7 +325,7 @@ function initThree() {
   let previous = 0;
   function animate(t) {
     frame = requestAnimationFrame(animate);
-    if (document.hidden || window.scrollY > window.innerHeight * 1.2) return;
+    if (document.hidden || page.value !== 'home' || window.scrollY > window.innerHeight * 1.2) return;
     const dt = Math.min((t - previous) / 1000 || 0, 0.04);
     previous = t;
     const pos = geometry.attributes.position.array;
@@ -363,6 +362,7 @@ onMounted(() => {
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('pointermove', onPointer, { passive: true });
   window.addEventListener('keydown', onKey);
+  window.addEventListener('hashchange', onHashChange);
   onScroll();
   sectionObserver = new IntersectionObserver(
     (entries) =>
@@ -381,11 +381,11 @@ onMounted(() => {
 onUnmounted(() => {
   clearInterval(interval);
   clearTimeout(introTimer);
-  revealObserver?.disconnect();
   sectionObserver?.disconnect();
   window.removeEventListener('scroll', onScroll);
   window.removeEventListener('pointermove', onPointer);
   window.removeEventListener('keydown', onKey);
+  window.removeEventListener('hashchange', onHashChange);
   cancelAnimationFrame(frame);
   if (resizeListener) window.removeEventListener('resize', resizeListener);
   points?.geometry.dispose();
@@ -401,8 +401,10 @@ onUnmounted(() => {
     <!-- Abertura -->
     <Transition name="intro">
       <div v-if="!introDone" class="intro" aria-hidden="true">
-        <img class="intro-logo" src="/logo-light.png" alt="" />
-        <span class="intro-line"></span>
+        <div class="intro-mark">
+          <img class="intro-logo" src="/logo-light.png" alt="" />
+          <span class="intro-bar"><span></span></span>
+        </div>
       </div>
     </Transition>
 
@@ -417,8 +419,8 @@ onUnmounted(() => {
         <a
           v-for="(link, i) in navLinks"
           :key="link.id"
-          :href="`#${link.id}`"
-          :class="{ active: activeSection === link.id }"
+          :href="link.href || `#${link.id}`"
+          :class="{ active: activeNav === link.id }"
           :style="{ '--i': i }"
           @click="closeMenu"
           >{{ link.label }}</a
@@ -440,7 +442,7 @@ onUnmounted(() => {
       </button>
     </header>
 
-    <main>
+    <main v-show="page === 'home'">
       <!-- Hero -->
       <section id="inicio" ref="hero" class="hero">
         <div class="hero-bg" aria-hidden="true">
@@ -518,17 +520,20 @@ onUnmounted(() => {
               <span class="detail-icon"><Clock3 :size="20" /></span>
               <div><small>Horário</small><strong>15h30</strong></div>
             </div>
-            <div v-reveal:left="450" class="detail">
-              <span class="detail-icon"><MapPin :size="20" /></span>
-              <div>
-                <small>Cerimônia · Cerimonial Casa Rio</small>
-                <strong>R. João Marques de Oliveira, 53<br />Buraquinho — Lauro de Freitas, BA</strong>
-              </div>
-            </div>
           </div>
-          <a v-reveal="550" class="btn btn-outline" :href="mapUrl" target="_blank" rel="noopener noreferrer">
-            Como chegar <ExternalLink :size="16" />
-          </a>
+          <div v-reveal:scale="450" class="venue-card">
+            <span class="venue-label"><MapPin :size="16" /> Local</span>
+            <strong class="venue-name">Cerimônia · <i>Cerimonial Casa Rio</i></strong>
+            <p class="venue-address">R. João Marques de Oliveira, 53<br />Buraquinho — Lauro de Freitas, BA</p>
+          </div>
+          <div v-reveal="550" class="ceremony-actions">
+            <a class="btn btn-outline" :href="mapUrl" target="_blank" rel="noopener noreferrer">
+              Como chegar <ExternalLink :size="16" />
+            </a>
+            <button class="btn btn-navy" @click="openRSVP">
+              Confirmar presença <ArrowUpRight :size="16" />
+            </button>
+          </div>
         </div>
         <div class="ceremony-art">
           <div v-reveal:clip class="arch">
@@ -587,10 +592,12 @@ onUnmounted(() => {
           <p v-reveal="100" class="eyebrow">Com carinho</p>
           <h2 v-reveal="200">O melhor presente<br />é ter <i>você aqui.</i></h2>
           <p v-reveal="300">
-            O mais importante é celebrar este momento ao seu lado. Em breve, disponibilizaremos nossa
-            lista de presentes.
+            O mais importante é celebrar este momento ao seu lado. Mas, se quiser nos presentear,
+            preparamos uma lista bem-humorada — do kit ressaca ao iate do Elon Musk.
           </p>
-          <span v-reveal="400" class="coming-soon"><i></i>Lista de presentes em preparação</span>
+          <a v-reveal="400" href="#/presentes" class="btn btn-navy">
+            Ver lista de presentes <ArrowUpRight :size="16" />
+          </a>
         </div>
       </section>
 
@@ -616,6 +623,8 @@ onUnmounted(() => {
         </div>
       </section>
     </main>
+
+    <GiftsPage v-if="page === 'gifts'" @rsvp="openRSVP" />
 
     <footer>
       <img v-reveal:scale src="/logo.png" alt="Monograma SH" />
