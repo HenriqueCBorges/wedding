@@ -1267,28 +1267,28 @@ p {
 }
 
 /* ---------- Rodapé ---------- */
-footer {
+.site-footer {
   background: var(--ivory);
   text-align: center;
   padding: 60px 20px 36px;
 }
-footer img {
+.site-footer img {
   width: 110px;
   margin: 0 auto 8px;
 }
-footer p {
+.site-footer p {
   font-family: var(--serif);
   font-size: 30px;
   margin: 5px;
 }
-footer small,
-footer span {
+.site-footer small,
+.site-footer span {
   display: block;
   color: #647080;
   font-size: 11px;
   letter-spacing: 0.08em;
 }
-footer span {
+.site-footer span {
   margin-top: 26px;
 }
 .beat {

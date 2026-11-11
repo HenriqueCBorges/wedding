@@ -115,12 +115,37 @@ export async function saveInvite({ code, familia, convidados, respostas }, { isN
   const kept = Object.fromEntries(Object.entries(respostas || {}).filter(([id]) => ids.has(id)));
   const data = {
     familia: familia?.trim() || null,
-    convidados: convidados.map((c) => ({ id: c.id, nome: c.nome.trim() })),
+    convidados: convidados.map(cleanGuest),
     respostas: kept,
     atualizadoEm: fs.serverTimestamp(),
   };
   if (isNew) await fs.setDoc(ref, { ...data, criadoEm: fs.serverTimestamp() });
   else await fs.updateDoc(ref, data);
+}
+
+// Convidado: { id, nome, tags: string[], assento: { lado: 'A'|'B', mesa: 1-10, cadeira: 1-7 } | null }
+function cleanGuest(c) {
+  return {
+    id: c.id,
+    nome: String(c.nome || '').trim(),
+    tags: Array.isArray(c.tags) ? [...new Set(c.tags)] : [],
+    assento: c.assento ? { lado: c.assento.lado, mesa: c.assento.mesa, cadeira: c.assento.cadeira } : null,
+  };
+}
+
+/**
+ * Atualiza convidados de vários convites de uma vez (ex.: trocar duas pessoas de lugar).
+ * @param {Map<string, Array>} updates  código do convite → lista completa de convidados
+ */
+export async function saveGuestsBatch(updates) {
+  const { db: d, fs } = await db();
+  const batch = fs.writeBatch(d);
+  for (const [code, convidados] of updates)
+    batch.update(fs.doc(d, 'convites', code), {
+      convidados: convidados.map(cleanGuest),
+      atualizadoEm: fs.serverTimestamp(),
+    });
+  await batch.commit();
 }
 
 export async function deleteInvite(code) {

@@ -671,7 +671,7 @@ onUnmounted(() => {
     <GiftsPage v-if="page === 'gifts'" @rsvp="openRSVP" />
     <AdminPage v-if="page === 'admin'" />
 
-    <footer v-show="page !== 'admin'">
+    <footer v-show="page !== 'admin'" class="site-footer">
       <img v-reveal:scale src="/logo.png" alt="Monograma SH" />
       <p>Stefania &amp; Henrique</p>
       <small>22 de agosto de 2027 · Lauro de Freitas, BA</small>

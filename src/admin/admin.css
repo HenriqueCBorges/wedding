@@ -1,0 +1,421 @@
+/* ============================================================
+   Painel dos noivos — tema noturno (azul-marinho, champagne)
+   Tudo prefixado com .adm para não afetar o site.
+   ============================================================ */
+.adm {
+  --bg: #0b1222;
+  --bg-2: #0f1830;
+  --panel: #141e36;
+  --panel-2: #1a2642;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.14);
+  --text: #e9edf6;
+  --muted: #8e98b0;
+  --soft: #b9c2d6;
+  --accent: #a5b6ec; /* cadeira confirmada */
+  --accent-ink: #0e1a38;
+  --gold: #d9bf8f;
+  --ok: #7fcaa0;
+  --no: #e8908c;
+  --wait: #d9bf8f;
+  --kid: #f2a36b;
+  --radius: 18px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  min-height: 100svh;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(80, 110, 200, 0.18), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(217, 191, 143, 0.1), transparent 60%),
+    var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.adm *,
+.adm *::before,
+.adm *::after {
+  box-sizing: border-box;
+}
+.adm h1,
+.adm h2,
+.adm h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin: 0;
+  color: var(--text);
+}
+.adm p {
+  margin: 0;
+}
+.adm button {
+  font: inherit;
+  cursor: pointer;
+}
+.adm .muted {
+  color: var(--muted);
+}
+.adm .serif {
+  font-family: var(--serif);
+}
+
+/* ---------- Superfícies ---------- */
+.adm .card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%), var(--panel);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.6);
+}
+.adm .section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.adm .section-head h1 {
+  font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+  line-height: 1.05;
+}
+.adm .section-head p {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.adm .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* ---------- Botões ---------- */
+.adm .b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    transform 0.25s var(--ease),
+    box-shadow 0.3s;
+}
+.adm .b:hover {
+  border-color: rgba(165, 182, 236, 0.5);
+  background: rgba(165, 182, 236, 0.08);
+}
+.adm .b:active {
+  transform: scale(0.97);
+}
+.adm .b:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.adm .b.primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #b9c6f1, #8fa3e2);
+  color: var(--accent-ink);
+  font-weight: 600;
+  box-shadow: 0 10px 24px -10px rgba(143, 163, 226, 0.7);
+}
+.adm .b.primary:hover {
+  box-shadow: 0 14px 30px -10px rgba(143, 163, 226, 0.9);
+}
+.adm .b.gold {
+  border-color: transparent;
+  background: linear-gradient(135deg, #ecd6ad, #c9a76f);
+  color: #2a1f0e;
+  font-weight: 600;
+}
+.adm .b.icon {
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 50%;
+}
+.adm .b.danger:hover {
+  border-color: rgba(232, 144, 140, 0.6);
+  background: rgba(232, 144, 140, 0.1);
+  color: var(--no);
+}
+
+/* ---------- Campos ---------- */
+.adm label.field {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.adm input,
+.adm select,
+.adm textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.adm select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 52%,
+    calc(100% - 13px) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+.adm select option {
+  background: var(--panel);
+}
+.adm input::placeholder,
+.adm textarea::placeholder {
+  color: #5f6a83;
+}
+.adm input:focus,
+.adm select:focus,
+.adm textarea:focus {
+  outline: none;
+  border-color: rgba(165, 182, 236, 0.7);
+  box-shadow: 0 0 0 4px rgba(165, 182, 236, 0.14);
+}
+.adm input:disabled {
+  opacity: 0.6;
+}
+.adm .search {
+  position: relative;
+  flex: 1 1 240px;
+}
+.adm .search svg {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--muted);
+  pointer-events: none;
+}
+.adm .search input {
+  padding-left: 38px;
+}
+
+/* ---------- Pílulas e tags ---------- */
+.adm .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 30px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.adm .pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.adm .pill.sim {
+  background: rgba(127, 202, 160, 0.12);
+  color: var(--ok);
+}
+.adm .pill.nao {
+  background: rgba(232, 144, 140, 0.12);
+  color: var(--no);
+}
+.adm .pill.pendente {
+  background: rgba(217, 191, 143, 0.12);
+  color: var(--wait);
+}
+.adm .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  border-radius: 30px;
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  color: var(--c);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.adm button.tag {
+  cursor: pointer;
+  opacity: 0.45;
+  border-style: dashed;
+  transition:
+    opacity 0.2s,
+    transform 0.2s var(--ease);
+}
+.adm button.tag.on {
+  opacity: 1;
+  border-style: solid;
+}
+.adm button.tag:active {
+  transform: scale(0.94);
+}
+.adm .seat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(165, 182, 236, 0.12);
+  color: var(--accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.adm .seat-badge.none {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+}
+
+/* ---------- Abas segmentadas ---------- */
+.adm .segmented {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.adm .segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  transition:
+    background 0.25s,
+    color 0.25s;
+}
+.adm .segmented button.on {
+  background: var(--panel-2);
+  color: var(--text);
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.7);
+}
+
+/* ---------- Modal do painel (fecha só pelo X) ---------- */
+.adm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(4, 8, 18, 0.66);
+  backdrop-filter: blur(6px);
+}
+.adm-modal {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: calc(100svh - 36px);
+  overflow-y: auto;
+  padding: 28px 26px 24px;
+  border: 1px solid var(--line-2);
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.8);
+}
+.adm-modal h2 {
+  font-size: 1.9rem;
+  margin-bottom: 4px;
+}
+.adm-modal .close {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+}
+.adm-pop-enter-active,
+.adm-pop-leave-active {
+  transition: opacity 0.3s;
+}
+.adm-pop-enter-active .adm-modal,
+.adm-pop-leave-active .adm-modal {
+  transition: transform 0.4s var(--ease);
+}
+.adm-pop-enter-from,
+.adm-pop-leave-to {
+  opacity: 0;
+}
+.adm-pop-enter-from .adm-modal,
+.adm-pop-leave-to .adm-modal {
+  transform: translateY(18px) scale(0.97);
+}
+
+/* ---------- Entradas animadas ---------- */
+@keyframes adm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.adm .rise {
+  animation: adm-rise 0.6s calc(var(--i, 0) * 45ms) var(--ease) both;
+}
+.adm-panel-enter-active,
+.adm-panel-leave-active {
+  transition:
+    opacity 0.3s,
+    transform 0.4s var(--ease);
+}
+.adm-panel-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.adm-panel-leave-to {
+  opacity: 0;
+}
+
+.adm .empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 48px 20px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--muted);
+}
+.adm .error {
+  color: var(--no);
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .adm *,
+  .adm *::before,
+  .adm *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
