@@ -55,7 +55,16 @@ export async function getSiteConfig() {
 /* ---------- Área interna ---------- */
 // O login é por usuário (ex.: henrique.carvalho); por baixo, o Firebase usa um e-mail.
 export const ADMIN_EMAIL_DOMAIN = 'casamento-stefania-henrique.firebaseapp.com';
-export const userToEmail = (user) => `${String(user).trim().toLowerCase()}@${ADMIN_EMAIL_DOMAIN}`;
+// Aceita só o usuário ("henrique.carvalho") ou o e-mail completo; ignora espaços e acentos.
+export function userToEmail(user) {
+  const clean = String(user || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+  if (clean.includes('@')) return clean;
+  return `${clean}@${ADMIN_EMAIL_DOMAIN}`;
+}
 export const emailToUser = (email) => String(email || '').split('@')[0];
 
 export async function login(user, password) {

@@ -34,10 +34,14 @@ async function doLogin() {
     await login(loginForm.value.user, loginForm.value.password);
     loginForm.value.password = '';
   } catch (e) {
-    loginError.value =
-      e?.code === 'auth/too-many-requests'
-        ? 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
-        : 'Usuário ou senha incorretos.';
+    const messages = {
+      'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+      'auth/invalid-email': 'Usuário inválido. Digite só o usuário, por exemplo: henrique.carvalho',
+      'auth/operation-not-allowed':
+        'O login por e-mail e senha ainda não foi ativado no Firebase (Authentication → Método de login).',
+      'auth/network-request-failed': 'Sem conexão com o servidor. Verifique a internet e tente de novo.',
+    };
+    loginError.value = messages[e?.code] || 'Usuário ou senha incorretos.';
   } finally {
     loginBusy.value = false;
   }
