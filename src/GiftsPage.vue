@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { ArrowLeft, ArrowUpRight, X, Heart, QrCode, Sparkles } from 'lucide-vue-next';
 import { gifts, priceRanges, formatPrice } from './gifts.js';
 import { vReveal } from './reveal.js';
+import GiftArt from './GiftArt.vue';
 
 const emit = defineEmits(['rsvp']);
 
@@ -73,18 +74,18 @@ onUnmounted(() => {
 <template>
   <main class="gifts-page">
     <section class="gp-hero">
-      <div class="gp-hero-bg" aria-hidden="true">
-        <img src="/art/presente.webp" alt="" />
-      </div>
       <div class="gp-hero-content">
         <a href="#presentes" class="gp-back hero-in" style="--d: 0"><ArrowLeft :size="15" /> Voltar ao site</a>
         <p class="eyebrow hero-in" style="--d: 1">Lista de presentes</p>
-        <h1 class="hero-in" style="--d: 2">Presenteie com <i>bom humor</i></h1>
+        <h1 class="hero-in" style="--d: 2">Presentes para <i>sonhar alto</i></h1>
         <p class="gp-lead hero-in" style="--d: 3">
-          Todos os presentes viram Pix para os noivos, mas a gente prefere imaginar que você comprou
-          mesmo o iate. Escolha o seu favorito.
+          Todos os presentes viram Pix para os noivos, mas a gente prefere imaginar que você nos deu
+          mesmo uma viagem à Lua. Escolha o seu favorito.
         </p>
       </div>
+      <figure class="gp-hero-photo hero-in" style="--d: 2">
+        <img src="/art/presente.webp" alt="Presente embrulhado em papel branco com laço champagne e etiqueta com o monograma SH" />
+      </figure>
     </section>
 
     <section class="gp-list section-wrap">
@@ -103,7 +104,7 @@ onUnmounted(() => {
 
       <TransitionGroup name="card" tag="div" class="gp-grid">
         <article v-for="(g, i) in visibleGifts" :key="g.id" class="gift-card" :style="{ '--i': i }">
-          <span class="gift-emoji" aria-hidden="true">{{ g.emoji }}</span>
+          <div class="gift-art-frame"><GiftArt :name="g.id" /></div>
           <h2>{{ g.title }}</h2>
           <p>{{ g.description }}</p>
           <div class="gift-foot">
@@ -137,7 +138,7 @@ onUnmounted(() => {
               :style="{ '--a': c.angle, '--dist': c.dist, background: c.color, animationDelay: c.delay }"
             ></i>
           </div>
-          <span class="qr-emoji" aria-hidden="true">{{ selected.emoji }}</span>
+          <div class="qr-art"><GiftArt :key="selected.id" :name="selected.id" autoplay /></div>
           <p class="eyebrow">Você escolheu</p>
           <h2 id="qr-title">{{ selected.title }}</h2>
           <p class="qr-price">{{ formatPrice(selected.price) }}</p>
@@ -160,7 +161,7 @@ onUnmounted(() => {
           </div>
 
           <p class="qr-warning"><QrCode :size="15" /> QR Code fictício: o Pix verdadeiro será disponibilizado em breve.</p>
-          <p class="qr-thanks"><Sparkles :size="15" /> Obrigado pelo carinho (e pelo senso de humor)!</p>
+          <p class="qr-thanks"><Sparkles :size="15" /> Obrigado pelo carinho (e por sonhar junto com a gente)!</p>
           <button class="btn btn-outline" @click="close">Escolher outro presente</button>
         </div>
       </div>

@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import * as THREE from 'three';
 import {
   Menu,
   X,
@@ -21,11 +20,18 @@ import {
 import { findInvite, normalizeCode } from './guests.js';
 import { vReveal, reducedMotion } from './reveal.js';
 import GiftsPage from './GiftsPage.vue';
+import { startHandDrawing } from './handDrawing.js';
 
 /* ---------- Estado geral ---------- */
 const mobileMenu = ref(false);
 const rsvpOpen = ref(false);
-const introDone = ref(reducedMotion);
+// Abertura: a ilustração do hero é desenhada à mão antes de a interface aparecer.
+// Não acontece com movimento reduzido nem quando o site abre direto na lista de presentes.
+const startsOnGifts = typeof location !== 'undefined' && location.hash === '#/presentes';
+const willDraw = !reducedMotion && !startsOnGifts;
+const introDone = ref(!willDraw); // interface (menu, nomes, contador) liberada
+const drawing = ref(willDraw); // desenho centralizado na tela, ainda sem a interface
+const revealed = ref(!willDraw); // ilustração final (com aquarela e água animada) visível
 const scrolled = ref(false);
 const headerHidden = ref(false);
 const progress = ref(0);
@@ -55,8 +61,6 @@ function onHashChange() {
   if (!wasGifts) return;
   // a página inicial estava oculta: rola até a âncora depois que ela reaparecer
   nextTick(() => {
-    if (!renderer) initThree();
-    else resizeListener?.();
     const target = hash && document.getElementById(hash.slice(1));
     if (target) target.scrollIntoView({ behavior: 'instant' });
     else window.scrollTo({ top: 0, behavior: 'instant' });
@@ -226,9 +230,13 @@ function onKey(e) {
   if (lightbox.value >= 0 && e.key === 'ArrowRight') stepLightbox(1);
   if (lightbox.value >= 0 && e.key === 'ArrowLeft') stepLightbox(-1);
 }
-watch([rsvpOpen, lightbox, mobileMenu], ([r, l, m]) => {
-  document.documentElement.classList.toggle('no-scroll', r || l >= 0 || m);
-});
+watch(
+  [rsvpOpen, lightbox, mobileMenu, introDone],
+  ([r, l, m, intro]) => {
+    document.documentElement.classList.toggle('no-scroll', r || l >= 0 || m || !intro);
+  },
+  { immediate: true },
+);
 
 /* ---------- Rolagem: header, progresso e parallax ---------- */
 let lastY = 0;
@@ -257,7 +265,7 @@ function onScroll() {
   });
 }
 
-/* ---------- Brilho que acompanha o mouse no hero ---------- */
+/* ---------- Parallax suave da ilustração com o mouse ---------- */
 const hero = ref(null);
 const pointer = { x: 0, y: 0 };
 function onPointer(e) {
@@ -269,93 +277,45 @@ function onPointer(e) {
   }
 }
 
-/* ---------- Partículas douradas (Three.js) ---------- */
-const canvasWrap = ref(null);
-let renderer, scene, camera, points, frame, resizeListener;
-function sparkTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, 'rgba(255,248,232,1)');
-  grad.addColorStop(0.25, 'rgba(232,210,170,0.85)');
-  grad.addColorStop(1, 'rgba(212,187,151,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
-function initThree() {
-  if (!canvasWrap.value || reducedMotion) return;
-  const width = canvasWrap.value.clientWidth;
-  const height = canvasWrap.value.clientHeight;
-  if (!width || !height) return;
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 100);
-  camera.position.z = 14;
-  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-  renderer.setSize(width, height);
-  renderer.setClearColor(0x000000, 0);
-  canvasWrap.value.appendChild(renderer.domElement);
-
-  const count = 140;
-  const vertices = new Float32Array(count * 3);
-  const speeds = [];
-  const drift = [];
-  for (let i = 0; i < count; i++) {
-    vertices[i * 3] = (Math.random() - 0.5) * 26;
-    vertices[i * 3 + 1] = (Math.random() - 0.5) * 16;
-    vertices[i * 3 + 2] = (Math.random() - 0.5) * 10;
-    speeds.push(0.15 + Math.random() * 0.4);
-    drift.push(Math.random() * Math.PI * 2);
+/* ---------- Abertura: desenho à mão ---------- */
+const drawCanvas = ref(null);
+const drawNib = ref(null);
+let drawCtl = null;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function runDrawing() {
+  // Primeira visita na sessão: ritmo completo. Recarregando: versão acelerada.
+  let speed = 1;
+  try {
+    if (sessionStorage.getItem('abertura-vista') === '1' && !location.search.includes('abertura')) speed = 0.3;
+    sessionStorage.setItem('abertura-vista', '1');
+  } catch {
+    /* armazenamento indisponível */
   }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  const material = new THREE.PointsMaterial({
-    size: 0.32,
-    map: sparkTexture(),
-    transparent: true,
-    opacity: 0.85,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
+  const wide = (drawCanvas.value?.clientWidth || 0) * Math.min(window.devicePixelRatio || 1, 2) > 1300;
+  drawCtl = startHandDrawing({
+    canvas: drawCanvas.value,
+    nib: drawNib.value,
+    imageSrc: wide ? '/art/casa-rio-ilustracao.webp' : '/art/casa-rio-ilustracao-1200.webp',
+    strokesUrl: '/art/tracos-casa-rio.json',
+    speed,
   });
-  points = new THREE.Points(geometry, material);
-  scene.add(points);
-
-  let previous = 0;
-  function animate(t) {
-    frame = requestAnimationFrame(animate);
-    if (document.hidden || page.value !== 'home' || window.scrollY > window.innerHeight * 1.2) return;
-    const dt = Math.min((t - previous) / 1000 || 0, 0.04);
-    previous = t;
-    const pos = geometry.attributes.position.array;
-    for (let i = 0; i < count; i++) {
-      pos[i * 3 + 1] += speeds[i] * dt;
-      pos[i * 3] += Math.sin(t * 0.0006 + drift[i]) * 0.004;
-      if (pos[i * 3 + 1] > 8.5) pos[i * 3 + 1] = -8.5;
-    }
-    geometry.attributes.position.needsUpdate = true;
-    material.opacity = 0.7 + Math.sin(t * 0.0015) * 0.15;
-    points.rotation.y += (pointer.x * 0.25 - points.rotation.y) * 0.03;
-    points.rotation.x += (pointer.y * 0.15 - points.rotation.x) * 0.03;
-    renderer.render(scene, camera);
-  }
-  frame = requestAnimationFrame(animate);
-  resizeListener = () => {
-    if (!canvasWrap.value) return;
-    const w = canvasWrap.value.clientWidth;
-    const h = canvasWrap.value.clientHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-  };
-  window.addEventListener('resize', resizeListener);
+  await drawCtl.done;
+  revealed.value = true; // sombras, aquarela e água assentam por cima do traço
+  await wait(drawCtl.skipped ? 300 : 1000 * Math.max(speed, 0.5));
+  drawing.value = false; // o desenho desliza para o lugar
+  await wait(500);
+  introDone.value = true; // surgem menu, nomes, data e contador
+}
+function skipDrawing() {
+  if (!drawCtl) return;
+  drawCtl.skipped = true;
+  drawCtl.skip();
 }
 
 /* ---------- Seção ativa no menu ---------- */
 let sectionObserver;
 
-let interval, introTimer;
+let interval;
 onMounted(() => {
   interval = setInterval(() => (now.value = Date.now()), 1000);
   parallaxEls = [...document.querySelectorAll('[data-parallax]')];
@@ -375,42 +335,32 @@ onMounted(() => {
     const el = document.getElementById(id);
     if (el) sectionObserver.observe(el);
   });
-  if (!introDone.value) introTimer = setTimeout(() => (introDone.value = true), 2300);
-  initThree();
+  if (willDraw) requestAnimationFrame(runDrawing);
 });
 onUnmounted(() => {
   clearInterval(interval);
-  clearTimeout(introTimer);
   sectionObserver?.disconnect();
   window.removeEventListener('scroll', onScroll);
   window.removeEventListener('pointermove', onPointer);
   window.removeEventListener('keydown', onKey);
   window.removeEventListener('hashchange', onHashChange);
-  cancelAnimationFrame(frame);
-  if (resizeListener) window.removeEventListener('resize', resizeListener);
-  points?.geometry.dispose();
-  points?.material.map?.dispose();
-  points?.material.dispose();
-  renderer?.dispose();
-  renderer?.domElement?.remove();
 });
 </script>
 
 <template>
   <div :class="['page', { ready: introDone }]">
-    <!-- Abertura -->
-    <Transition name="intro">
-      <div v-if="!introDone" class="intro" aria-hidden="true">
-        <div class="intro-mark">
-          <img class="intro-logo" src="/logo-light.png" alt="" />
-          <span class="intro-bar"><span></span></span>
-        </div>
-      </div>
+    <Transition name="fade">
+      <button v-if="drawing" class="draw-skip" type="button" @click="skipDrawing">Pular abertura</button>
     </Transition>
 
     <div class="scroll-progress" :style="{ transform: `scaleX(${progress})` }"></div>
 
-    <header :class="['site-header', { scrolled, hidden: headerHidden, 'menu-open': mobileMenu }]">
+    <header
+      :class="[
+        'site-header',
+        { scrolled, hidden: headerHidden, 'menu-open': mobileMenu, 'on-light': true },
+      ]"
+    >
       <a href="#inicio" class="brand" aria-label="Voltar ao início" @click="closeMenu">
         <img class="brand-logo brand-light" src="/logo-light.png" alt="" />
         <img class="brand-logo brand-dark" src="/logo.png" alt="Monograma SH — Stefania e Henrique" />
@@ -444,21 +394,59 @@ onUnmounted(() => {
 
     <main v-show="page === 'home'">
       <!-- Hero -->
-      <section id="inicio" ref="hero" class="hero">
-        <div class="hero-bg" aria-hidden="true">
-          <img src="/art/cerimonia-editorial.webp" alt="" fetchpriority="high" />
+      <section id="inicio" ref="hero" :class="['hero', { drawing, revealed }]">
+        <!-- Ondulação dos reflexos na água (deslocamento só na horizontal) -->
+        <svg class="hero-filters" width="0" height="0" aria-hidden="true" focusable="false">
+          <filter id="water-ripple" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.004 0.06" numOctaves="2" seed="7" result="noise">
+              <animate
+                v-if="!reducedMotion"
+                attributeName="baseFrequency"
+                dur="10s"
+                values="0.004 0.06;0.0048 0.072;0.004 0.06"
+                repeatCount="indefinite"
+              />
+            </feTurbulence>
+            <feColorMatrix
+              in="noise"
+              type="matrix"
+              values="1 0 0 0 0  0 0 0 0 0.5  0 0 1 0 0  0 0 0 0 1"
+              result="flow"
+            />
+            <feDisplacementMap in="SourceGraphic" in2="flow" scale="9" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </svg>
+
+        <!-- Ilustração da Casa Rio -->
+        <div class="hero-scene-wrap" data-parallax="-0.14" aria-hidden="true">
+          <div class="hero-scene">
+            <img
+              class="scene-img"
+              src="/art/casa-rio-ilustracao.webp"
+              srcset="/art/casa-rio-ilustracao-1200.webp 1200w, /art/casa-rio-ilustracao.webp 2400w"
+              sizes="(max-width: 720px) 116vw, min(1600px, 100vw)"
+              alt=""
+              fetchpriority="high"
+            />
+            <div class="scene-water">
+              <img
+                src="/art/casa-rio-ilustracao.webp"
+                srcset="/art/casa-rio-ilustracao-1200.webp 1200w, /art/casa-rio-ilustracao.webp 2400w"
+                sizes="(max-width: 720px) 116vw, min(1600px, 100vw)"
+                alt=""
+              />
+              <span class="scene-glint"></span>
+            </div>
+            <canvas v-if="willDraw" ref="drawCanvas" class="scene-draw"></canvas>
+            <span v-if="willDraw" ref="drawNib" class="draw-nib"></span>
+          </div>
         </div>
-        <div class="hero-veil" aria-hidden="true"></div>
-        <div class="three-layer" ref="canvasWrap" aria-hidden="true"></div>
+
+        <img class="hero-orn left" src="/art/flores.webp" alt="" aria-hidden="true" />
+        <img class="hero-orn right" src="/art/flores.webp" alt="" aria-hidden="true" />
 
         <div class="hero-content">
           <p class="eyebrow hero-in" style="--d: 0">O nosso grande dia</p>
-          <img
-            class="hero-logo hero-in"
-            style="--d: 1"
-            src="/logo-light.png"
-            alt="Monograma floral SH — Stefania e Henrique"
-          />
           <h1 aria-label="Stefania e Henrique">
             <span class="word" aria-hidden="true">
               <span v-for="(c, i) in titleFirst" :key="'a' + i" class="char" :style="{ '--c': i }">{{ c }}</span>
@@ -469,9 +457,11 @@ onUnmounted(() => {
             </span>
           </h1>
           <p class="hero-date hero-in" style="--d: 6">
-            <span>22</span><i></i><span>agosto</span><i></i><span>2027</span>
+            <b></b><span>22</span><i></i><span>agosto</span><i></i><span>2027</span><b></b>
           </p>
+        </div>
 
+        <div class="hero-bottom">
           <div class="countdown hero-in" style="--d: 7" role="timer" aria-label="Contagem regressiva para o casamento">
             <template v-if="!weddingArrived">
               <div v-for="item in countdown" :key="item.label" class="count-item">
@@ -537,10 +527,15 @@ onUnmounted(() => {
         </div>
         <div class="ceremony-art">
           <div v-reveal:clip class="arch">
-            <img data-parallax="-0.08" src="/art/espaco-aquarela.webp" alt="Arte ilustrativa em aquarela de espaço de celebração" loading="lazy" />
+            <img
+              data-parallax="-0.08"
+              src="/art/casa-rio-foto.webp"
+              alt="Cerimonial Casa Rio: casarão entre coqueiros refletido no lago"
+              loading="lazy"
+            />
           </div>
           <div v-reveal:scale="500" class="art-stamp">Um dia<br /><i>inesquecível</i></div>
-          <p class="art-note">Arte conceitual · não é fotografia do local</p>
+          <p class="art-note">Cerimonial Casa Rio · Lauro de Freitas, BA</p>
         </div>
       </section>
 
@@ -593,7 +588,7 @@ onUnmounted(() => {
           <h2 v-reveal="200">O melhor presente<br />é ter <i>você aqui.</i></h2>
           <p v-reveal="300">
             O mais importante é celebrar este momento ao seu lado. Mas, se quiser nos presentear,
-            preparamos uma lista bem-humorada — do kit ressaca ao iate do Elon Musk.
+            preparamos uma lista de presentes de outro mundo — de um bate e volta na Lua a um piquenique nos anéis de Saturno.
           </p>
           <a v-reveal="400" href="#/presentes" class="btn btn-navy">
             Ver lista de presentes <ArrowUpRight :size="16" />
