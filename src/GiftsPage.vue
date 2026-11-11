@@ -57,7 +57,6 @@ watch([selected, config], async ([g, c]) => {
     nome: c.pixNome,
     cidade: c.pixCidade,
     valor: g.price,
-    mensagem: g.id === 'livre' ? 'Presente casamento' : g.title,
   });
   qrSvg.value = await pixQrSvg(pixCode.value);
 });
@@ -183,7 +182,6 @@ onUnmounted(() => {
           <template v-if="pixReady">
             <div class="qr-box">
               <div v-if="qrSvg" class="qr-real" role="img" :aria-label="`QR Code Pix de ${formatPrice(selected.price)}`" v-html="qrSvg"></div>
-              <span class="qr-scan" aria-hidden="true"></span>
             </div>
             <p class="qr-help"><QrCode :size="15" /> Aponte a câmera do app do seu banco ou copie o código.</p>
             <button class="btn btn-navy qr-copy" type="button" @click="copyPix">

@@ -27,8 +27,42 @@ const clean = (text, max) =>
     .toUpperCase()
     .slice(0, max);
 
+/* ---------- Leitura de um "copia e cola" existente ---------- */
+function readTlv(s) {
+  const out = {};
+  let i = 0;
+  while (i + 4 <= s.length) {
+    const id = s.slice(i, i + 2);
+    const len = Number(s.slice(i + 2, i + 4));
+    if (!Number.isFinite(len)) break;
+    out[id] = s.slice(i + 4, i + 4 + len);
+    i += 4 + len;
+  }
+  return out;
+}
+export const isPixPayload = (text) => /^000201/.test(String(text || '').trim()) && /br\.gov\.bcb\.pix/i.test(text);
+/** Extrai chave, nome e cidade de um código Pix "copia e cola" (ex.: gerado pelo app do banco). */
+export function parsePixPayload(text) {
+  const top = readTlv(String(text || '').trim());
+  const account = readTlv(top['26'] || '');
+  return { chave: account['01'] || '', nome: top['59'] || '', cidade: top['60'] || '' };
+}
+
+/** Tipo da chave Pix, ou null se não for uma chave válida. */
+export function pixKeyType(key) {
+  const k = normalizePixKey(key);
+  if (/^\d{11}$/.test(k)) return 'CPF';
+  if (/^\d{14}$/.test(k)) return 'CNPJ';
+  if (/^\+55\d{10,11}$/.test(k)) return 'Telefone';
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(k) && k.length <= 77) return 'E-mail';
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)) return 'Chave aleatória';
+  return null;
+}
+
 export function normalizePixKey(key) {
-  const k = String(key || '').trim();
+  let k = String(key || '').trim();
+  // colaram o "copia e cola" inteiro no lugar da chave: usa só a chave que está dentro dele
+  if (isPixPayload(k)) k = parsePixPayload(k).chave.trim();
   if (/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(k)) return k.replace(/\D/g, ''); // CPF
   if (/^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$/.test(k)) return k.replace(/\D/g, ''); // CNPJ
   if (k.includes('@')) return k.toLowerCase(); // e-mail
@@ -37,13 +71,14 @@ export function normalizePixKey(key) {
 }
 
 export function pixConfigured(config) {
-  return !!(config?.pixChave && config?.pixNome && config?.pixCidade);
+  return !!(config?.pixNome && config?.pixCidade && pixKeyType(config?.pixChave));
 }
 
 /**
  * Monta o payload Pix.
  * @param {{ chave: string, nome: string, cidade: string, valor?: number, mensagem?: string }} p
  */
+// `mensagem` (campo 02) é opcional e fica desligada no site: alguns apps de banco recusam o campo.
 export function buildPix({ chave, nome, cidade, valor, mensagem }) {
   let account = field('00', 'br.gov.bcb.pix') + field('01', normalizePixKey(chave));
   const msg = clean(mensagem, 40);
@@ -66,8 +101,8 @@ export async function pixQrSvg(payload) {
   const { default: QRCode } = await import('qrcode');
   return QRCode.toString(payload, {
     type: 'svg',
-    margin: 1,
+    margin: 4, // zona de respiro padrão: ajuda a câmera do banco a reconhecer
     errorCorrectionLevel: 'M',
-    color: { dark: '#0b1f49', light: '#ffffff' },
+    color: { dark: '#000000', light: '#ffffff' },
   });
 }
