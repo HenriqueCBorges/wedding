@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// Regras do banco do casamento.
+// - Convidados: leem só o convite cujo código digitaram (sem listar os outros)
+//   e só podem alterar as próprias respostas.
+// - Noivos (logados com os usuários abaixo): leem e editam tudo.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email in [
+        'henrique.carvalho@casamento-stefania-henrique.firebaseapp.com',
+        'stefania.morais@casamento-stefania-henrique.firebaseapp.com'
+      ];
+    }
+
+    function validAnswers(data) {
+      return data.respostas is map
+        && data.respostas.size() <= data.convidados.size();
+    }
+
+    match /convites/{code} {
+      allow get: if true;
+      allow list, create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['respostas', 'respondidoEm'])
+        && validAnswers(request.resource.data)
+        && request.resource.data.respondidoEm == request.time
+      );
+    }
+
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

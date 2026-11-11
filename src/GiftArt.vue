@@ -523,6 +523,27 @@ onUnmounted(() => observer?.disconnect());
         </g>
       </template>
 
+      <!-- ============ Presente com valor livre ============ -->
+      <template v-else-if="name === 'livre'">
+        <g class="wash">
+          <path d="M46 52 H114 V100 H46 Z" />
+        </g>
+        <g class="ink">
+          <path d="M40 40 H120 V52 H40 Z" />
+          <path d="M46 52 V100 H114 V52" />
+          <path d="M74 40 V100 M86 40 V100" />
+          <path d="M80 40 C70 26 54 24 56 34 C58 42 72 40 80 40 Z" />
+          <path d="M80 40 C90 26 106 24 104 34 C102 42 88 40 80 40 Z" />
+          <path d="M78 40 L70 54 M82 40 L90 54" />
+          <path class="h" d="M50 60 V94 M56 60 V94 M104 60 V94 M110 60 V94" />
+          <path :d="sparkle(28, 30, 4)" />
+          <path :d="sparkle(134, 26, 3.5)" />
+          <path :d="sparkle(136, 84, 3)" />
+          <path :d="sparkle(24, 82, 2.5)" />
+          <path class="h" d="M14 102 H146" />
+        </g>
+      </template>
+
       <!-- ============ Jardim que floresce o ano inteiro ============ -->
       <template v-else-if="name === 'jardim'">
         <g class="wash">

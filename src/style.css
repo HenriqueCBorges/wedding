@@ -2018,6 +2018,105 @@ footer span {
   color: var(--ink-soft);
   margin-bottom: 20px;
 }
+.qr-real svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.qr-real {
+  aspect-ratio: 1;
+}
+.qr-help {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.qr-help svg {
+  display: inline;
+  vertical-align: -3px;
+  margin-right: 6px;
+  color: var(--gold);
+}
+.qr-copy {
+  margin: 0 auto 16px;
+  gap: 10px;
+}
+
+/* Valor livre (no lugar do antigo "Prefere outro valor?") */
+.gp-custom {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) 1fr;
+  align-items: center;
+  gap: 28px;
+  padding: 30px 34px;
+  border: 1px solid rgba(29, 58, 138, 0.14);
+  background: #fffaf3;
+  text-align: left;
+}
+.gp-custom-art {
+  padding: 12px 14px 8px;
+  border: 1px solid rgba(29, 58, 138, 0.22);
+  border-radius: 14px;
+  background: #fcf1e5;
+}
+.gp-custom h2 {
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  margin: 0 0 6px;
+}
+.gp-custom p {
+  max-width: 520px;
+}
+.gp-custom-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 14px;
+}
+.gp-amount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid rgba(29, 58, 138, 0.25);
+  border-radius: 40px;
+  background: #fff;
+}
+.gp-amount span {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  color: var(--gold);
+}
+.gp-amount input {
+  width: 120px;
+  padding: 13px 0;
+  border: 0;
+  background: none;
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  color: var(--navy);
+  outline: none;
+}
+.gp-rsvp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (max-width: 720px) {
+  .gp-custom {
+    grid-template-columns: 1fr;
+    padding: 24px 20px;
+  }
+  .gp-custom-art {
+    max-width: 260px;
+  }
+}
 .qr-warning svg,
 .qr-thanks svg {
   display: inline;

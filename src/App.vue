@@ -17,9 +17,11 @@ import {
   Expand,
   ArrowLeft,
 } from 'lucide-vue-next';
-import { findInvite, normalizeCode } from './guests.js';
+import { getInvite, saveRsvp, normalizeCode } from './api.js';
 import { vReveal, reducedMotion } from './reveal.js';
 import GiftsPage from './GiftsPage.vue';
+import { defineAsyncComponent } from 'vue';
+const AdminPage = defineAsyncComponent(() => import('./AdminPage.vue'));
 import { startHandDrawing } from './handDrawing.js';
 
 /* ---------- Estado geral ---------- */
@@ -27,8 +29,8 @@ const mobileMenu = ref(false);
 const rsvpOpen = ref(false);
 // Abertura: a ilustração do hero é desenhada à mão antes de a interface aparecer.
 // Não acontece com movimento reduzido nem quando o site abre direto na lista de presentes.
-const startsOnGifts = typeof location !== 'undefined' && location.hash === '#/presentes';
-const willDraw = !reducedMotion && !startsOnGifts;
+const startsOnHome = typeof location === 'undefined' || !location.hash.startsWith('#/');
+const willDraw = !reducedMotion && startsOnHome;
 const introDone = ref(!willDraw); // interface (menu, nomes, contador) liberada
 const drawing = ref(willDraw); // desenho centralizado na tela, ainda sem a interface
 const revealed = ref(!willDraw); // ilustração final (com aquarela e água animada) visível
@@ -45,20 +47,22 @@ const navLinks = [
   { id: 'presentes', label: 'Presentes', href: '#/presentes' },
 ];
 
-/* ---------- Páginas: início e lista de presentes (#/presentes) ---------- */
-const GIFTS_HASH = '#/presentes';
-const page = ref(typeof location !== 'undefined' && location.hash === GIFTS_HASH ? 'gifts' : 'home');
+/* ---------- Páginas: início, presentes (#/presentes) e área interna (#/admin) ---------- */
+const ROUTES = { '#/presentes': 'gifts', '#/admin': 'admin' };
+const pageFromHash = (hash) => ROUTES[hash] || 'home';
+const page = ref(typeof location !== 'undefined' ? pageFromHash(location.hash) : 'home');
 const activeNav = computed(() => (page.value === 'gifts' ? 'presentes' : activeSection.value));
 function onHashChange() {
   const hash = location.hash;
-  if (hash === GIFTS_HASH) {
-    page.value = 'gifts';
+  const next = pageFromHash(hash);
+  if (next !== 'home') {
+    page.value = next;
     window.scrollTo({ top: 0, behavior: 'instant' });
     return;
   }
-  const wasGifts = page.value === 'gifts';
+  const wasOther = page.value !== 'home';
   page.value = 'home';
-  if (!wasGifts) return;
+  if (!wasOther) return;
   // a página inicial estava oculta: rola até a âncora depois que ela reaparecer
   nextTick(() => {
     const target = hash && document.getElementById(hash.slice(1));
@@ -162,57 +166,87 @@ function openRSVP() {
   closeMenu();
 }
 
-/* ---------- RSVP: código → convidados → confirmação ---------- */
-// Demonstração local: não salva nem envia dados.
+/* ---------- RSVP: código → convidados → confirmação (Firestore) ---------- */
 const rsvpStep = ref('code'); // 'code' | 'guests' | 'done'
 const inviteCode = ref('');
 const codeError = ref('');
-const invite = ref(null);
-const answers = ref([]); // 'sim' | 'nao' | null, um por convidado
-const allAnswered = computed(() => answers.value.length > 0 && answers.value.every(Boolean));
+const rsvpBusy = ref(false);
+const invite = ref(null); // { code, familia, convidados: [{ id, nome }], respostas }
+const answers = ref({}); // { [convidadoId]: 'sim' | 'nao' }
+const answeredBefore = ref(false);
+const allAnswered = computed(
+  () => !!invite.value && invite.value.convidados.every((c) => answers.value[c.id]),
+);
 const confirmedGuests = computed(() =>
-  invite.value ? invite.value.guests.filter((_, i) => answers.value[i] === 'sim') : [],
+  invite.value ? invite.value.convidados.filter((c) => answers.value[c.id] === 'sim').map((c) => c.nome) : [],
 );
 const declinedGuests = computed(() =>
-  invite.value ? invite.value.guests.filter((_, i) => answers.value[i] === 'nao') : [],
+  invite.value ? invite.value.convidados.filter((c) => answers.value[c.id] === 'nao').map((c) => c.nome) : [],
 );
+const isGroup = computed(() => (invite.value?.convidados.length || 0) > 1);
 
 function onCodeInput(e) {
   inviteCode.value = normalizeCode(e.target.value);
   e.target.value = inviteCode.value;
   codeError.value = '';
 }
-function submitCode() {
-  const found = findInvite(inviteCode.value);
-  if (!found) {
-    codeError.value = 'Código não encontrado. Confira o código do seu convite.';
-    return;
+async function submitCode() {
+  if (rsvpBusy.value) return;
+  rsvpBusy.value = true;
+  codeError.value = '';
+  try {
+    const found = await getInvite(inviteCode.value);
+    if (!found || !found.convidados.length) {
+      codeError.value = 'Código não encontrado. Confira o código do seu convite.';
+      return;
+    }
+    invite.value = found;
+    answers.value = { ...found.respostas };
+    answeredBefore.value = Object.keys(found.respostas).length > 0;
+    rsvpStep.value = 'guests';
+  } catch {
+    codeError.value = 'Não conseguimos consultar o convite agora. Tente novamente em instantes.';
+  } finally {
+    rsvpBusy.value = false;
   }
-  invite.value = found;
-  answers.value = found.guests.map(() => null);
-  rsvpStep.value = 'guests';
 }
-function setAnswer(i, value) {
-  answers.value[i] = value;
+function setAnswer(id, value) {
+  answers.value = { ...answers.value, [id]: value };
 }
 function setAllAnswers(value) {
-  answers.value = answers.value.map(() => value);
+  answers.value = Object.fromEntries(invite.value.convidados.map((c) => [c.id, value]));
 }
-function submitRSVP() {
-  if (allAnswered.value) rsvpStep.value = 'done';
+const saveError = ref('');
+async function submitRSVP() {
+  if (!allAnswered.value || rsvpBusy.value) return;
+  rsvpBusy.value = true;
+  saveError.value = '';
+  try {
+    await saveRsvp(invite.value.code, answers.value);
+    rsvpStep.value = 'done';
+  } catch {
+    saveError.value = 'Não foi possível salvar sua resposta. Verifique a conexão e tente de novo.';
+  } finally {
+    rsvpBusy.value = false;
+  }
 }
 function backToCode() {
   rsvpStep.value = 'code';
   codeError.value = '';
+  saveError.value = '';
 }
+let resetTimer;
 function closeRSVP() {
   rsvpOpen.value = false;
-  setTimeout(() => {
+  clearTimeout(resetTimer);
+  resetTimer = setTimeout(() => {
+    if (rsvpOpen.value) return; // reaberto antes do fim da animação
     rsvpStep.value = 'code';
     inviteCode.value = '';
     codeError.value = '';
+    saveError.value = '';
     invite.value = null;
-    answers.value = [];
+    answers.value = {};
   }, 400);
 }
 function openLightbox(i) {
@@ -222,11 +256,8 @@ function stepLightbox(dir) {
   lightbox.value = (lightbox.value + dir + pictures.length) % pictures.length;
 }
 function onKey(e) {
-  if (e.key === 'Escape') {
-    if (lightbox.value >= 0) lightbox.value = -1;
-    else if (rsvpOpen.value) closeRSVP();
-    else closeMenu();
-  }
+  // modais (RSVP, galeria) fecham apenas pelo X; o Esc só fecha o menu
+  if (e.key === 'Escape' && lightbox.value < 0 && !rsvpOpen.value) closeMenu();
   if (lightbox.value >= 0 && e.key === 'ArrowRight') stepLightbox(1);
   if (lightbox.value >= 0 && e.key === 'ArrowLeft') stepLightbox(-1);
 }
@@ -336,6 +367,23 @@ onMounted(() => {
     if (el) sectionObserver.observe(el);
   });
   if (willDraw) requestAnimationFrame(runDrawing);
+  // link do convite (?convite=CODIGO): abre a confirmação já com o código
+  const linkCode = normalizeCode(new URLSearchParams(location.search).get('convite'));
+  if (linkCode.length === 6) {
+    const open = () => {
+      inviteCode.value = linkCode;
+      rsvpOpen.value = true;
+      submitCode();
+    };
+    if (introDone.value) open();
+    else {
+      const stop = watch(introDone, (v) => {
+        if (!v) return;
+        stop();
+        setTimeout(open, 1400);
+      });
+    }
+  }
 });
 onUnmounted(() => {
   clearInterval(interval);
@@ -353,9 +401,10 @@ onUnmounted(() => {
       <button v-if="drawing" class="draw-skip" type="button" @click="skipDrawing">Pular abertura</button>
     </Transition>
 
-    <div class="scroll-progress" :style="{ transform: `scaleX(${progress})` }"></div>
+    <div v-show="page !== 'admin'" class="scroll-progress" :style="{ transform: `scaleX(${progress})` }"></div>
 
     <header
+      v-show="page !== 'admin'"
       :class="[
         'site-header',
         { scrolled, hidden: headerHidden, 'menu-open': mobileMenu, 'on-light': true },
@@ -620,8 +669,9 @@ onUnmounted(() => {
     </main>
 
     <GiftsPage v-if="page === 'gifts'" @rsvp="openRSVP" />
+    <AdminPage v-if="page === 'admin'" />
 
-    <footer>
+    <footer v-show="page !== 'admin'">
       <img v-reveal:scale src="/logo.png" alt="Monograma SH" />
       <p>Stefania &amp; Henrique</p>
       <small>22 de agosto de 2027 · Lauro de Freitas, BA</small>
@@ -630,7 +680,7 @@ onUnmounted(() => {
 
     <!-- Modal RSVP -->
     <Transition name="modal">
-      <div v-if="rsvpOpen" class="modal-backdrop" @click.self="closeRSVP">
+      <div v-if="rsvpOpen" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-title">
           <button class="modal-close" aria-label="Fechar" @click="closeRSVP"><X :size="22" /></button>
           <Transition name="swap" mode="out-in">
@@ -659,14 +709,10 @@ onUnmounted(() => {
                 <Transition name="fade-height">
                   <p v-if="codeError" id="code-error" class="form-error" role="alert">{{ codeError }}</p>
                 </Transition>
-                <button class="btn btn-navy" type="submit" :disabled="inviteCode.length < 6">
-                  Continuar <ArrowUpRight :size="16" />
+                <button class="btn btn-navy" type="submit" :disabled="inviteCode.length < 6 || rsvpBusy">
+                  {{ rsvpBusy ? 'Buscando convite…' : 'Continuar' }} <ArrowUpRight :size="16" />
                 </button>
               </form>
-              <small class="modal-disclaimer"
-                >Protótipo: a confirmação não é enviada nem armazenada. Para testar, use os códigos
-                <b>ABC123</b>, <b>XYZ789</b> ou <b>FAM456</b>.</small
-              >
             </div>
 
             <!-- Etapa 2: convidados do convite -->
@@ -675,53 +721,61 @@ onUnmounted(() => {
                 <ArrowLeft :size="15" /> Trocar código
               </button>
               <p class="eyebrow">RSVP · Etapa 2 de 2</p>
-              <h2 id="rsvp-title">Olá, <i>{{ invite.label }}</i></h2>
+              <!-- com família: "Olá, Família X"; sem família: só a pergunta, com o nome abaixo -->
+              <h2 v-if="invite.familia" id="rsvp-title">Olá, <i>{{ invite.familia }}</i></h2>
+              <h2 v-else id="rsvp-title">Confirma sua <i>presença?</i></h2>
               <p class="modal-lead">
                 {{
-                  invite.guests.length > 1
+                  isGroup
                     ? 'Este convite inclui as pessoas abaixo. Conte para nós quem poderá celebrar conosco.'
                     : 'Conte para nós se poderá celebrar conosco.'
                 }}
               </p>
+              <p v-if="answeredBefore" class="form-hint">
+                Você já respondeu antes — pode alterar a resposta quando quiser.
+              </p>
               <form @submit.prevent="submitRSVP">
-                <div v-if="invite.guests.length > 1" class="bulk-actions">
+                <div v-if="isGroup" class="bulk-actions">
                   <button type="button" @click="setAllAnswers('sim')">Todos vão</button>
                   <button type="button" @click="setAllAnswers('nao')">Ninguém poderá ir</button>
                 </div>
                 <ul class="guest-list">
                   <li
-                    v-for="(name, i) in invite.guests"
-                    :key="name"
+                    v-for="(guest, i) in invite.convidados"
+                    :key="guest.id"
                     class="guest-row"
                     :style="{ '--i': i }"
                   >
-                    <span class="guest-name">{{ name }}</span>
-                    <div class="choice" role="radiogroup" :aria-label="`Presença de ${name}`">
+                    <span class="guest-name">{{ guest.nome }}</span>
+                    <div class="choice" role="radiogroup" :aria-label="`Presença de ${guest.nome}`">
                       <button
                         type="button"
                         role="radio"
-                        :aria-checked="answers[i] === 'sim'"
-                        :class="['choice-btn yes', { on: answers[i] === 'sim' }]"
-                        @click="setAnswer(i, 'sim')"
+                        :aria-checked="answers[guest.id] === 'sim'"
+                        :class="['choice-btn yes', { on: answers[guest.id] === 'sim' }]"
+                        @click="setAnswer(guest.id, 'sim')"
                       >
                         <Check :size="14" /> Vou
                       </button>
                       <button
                         type="button"
                         role="radio"
-                        :aria-checked="answers[i] === 'nao'"
-                        :class="['choice-btn no', { on: answers[i] === 'nao' }]"
-                        @click="setAnswer(i, 'nao')"
+                        :aria-checked="answers[guest.id] === 'nao'"
+                        :class="['choice-btn no', { on: answers[guest.id] === 'nao' }]"
+                        @click="setAnswer(guest.id, 'nao')"
                       >
                         <X :size="14" /> Não vou
                       </button>
                     </div>
                   </li>
                 </ul>
-                <button class="btn btn-navy" type="submit" :disabled="!allAnswered">
-                  Confirmar resposta <ArrowUpRight :size="16" />
+                <button class="btn btn-navy" type="submit" :disabled="!allAnswered || rsvpBusy">
+                  {{ rsvpBusy ? 'Salvando…' : 'Confirmar resposta' }} <ArrowUpRight :size="16" />
                 </button>
-                <p v-if="!allAnswered" class="form-hint">Responda para cada convidado para continuar.</p>
+                <p v-if="saveError" class="form-error" role="alert">{{ saveError }}</p>
+                <p v-else-if="!allAnswered" class="form-hint">
+                  {{ isGroup ? 'Responda para cada convidado para continuar.' : 'Escolha uma opção para continuar.' }}
+                </p>
               </form>
             </div>
 
@@ -744,10 +798,7 @@ onUnmounted(() => {
                   <span v-for="name in declinedGuests" :key="name" class="tag no">{{ name }}</span>
                 </div>
               </div>
-              <small class="modal-disclaimer"
-                >Demonstração: para receber confirmações reais, será necessário conectar o formulário a um
-                serviço de dados.</small
-              >
+              <small class="modal-disclaimer">Resposta salva. Se mudar de ideia, é só usar o mesmo código.</small>
               <button class="btn btn-outline" @click="closeRSVP">Fechar</button>
             </div>
           </Transition>
@@ -757,7 +808,7 @@ onUnmounted(() => {
 
     <!-- Lightbox -->
     <Transition name="modal">
-      <div v-if="lightbox >= 0" class="lightbox" @click.self="lightbox = -1">
+      <div v-if="lightbox >= 0" class="lightbox">
         <button class="lb-close" aria-label="Fechar" @click="lightbox = -1"><X :size="26" /></button>
         <button class="lb-nav prev" aria-label="Anterior" @click="stepLightbox(-1)"><ChevronLeft :size="30" /></button>
         <Transition name="swap" mode="out-in">
