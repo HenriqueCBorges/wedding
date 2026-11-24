@@ -2,7 +2,6 @@
 
 export const VENUE = 'Cerimonial Casa Rio, R. João Marques de Oliveira, 53, Buraquinho, Lauro de Freitas - BA';
 export const MAP_URL = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(VENUE);
-export const MAP_EMBED = `https://maps.google.com/maps?q=${encodeURIComponent(VENUE)}&z=15&output=embed`;
 
 const EVENT = {
   title: 'Casamento Stefania & Henrique',

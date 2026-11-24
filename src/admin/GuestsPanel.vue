@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, inject, watch } from 'vue';
+import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue';
 import {
   Search,
   Plus,
@@ -18,14 +18,38 @@ import {
   BellRing,
   Tag,
   UserMinus,
+  CalendarClock,
+  UserCheck,
   LayoutGrid,
   List,
 } from 'lucide-vue-next';
-import { saveInvite, deleteInvite, inviteExists, randomCode, randomId, saveGuestsBatch } from '../api.js';
+import { saveInvite, deleteInvite, inviteExists, randomCode, randomId, saveGuestsBatch, saveSiteConfig, saveResponsesBatch } from '../api.js';
 import { TAGS, tagById, STATUS, SIDES, seatShort, seatLabel, seatKey, strip, tablesFor, tableTitle } from './seating.js';
 import { waLink, inviteMessage, reminderMessage, inviteLink } from './whatsapp.js';
 
-const props = defineProps({ invites: Array, guests: Array, tables: Object });
+const props = defineProps({ invites: Array, guests: Array, tables: Object, config: Object });
+const emit = defineEmits(['config-saved']);
+
+/* ---------- Prazo para responder (aparece na confirmação de presença do site) ---------- */
+const deadline = ref('');
+watch(
+  () => props.config?.prazoConfirmacao,
+  (v) => (deadline.value = v || ''),
+  { immediate: true },
+);
+const deadlineBusy = ref(false);
+async function saveDeadline() {
+  deadlineBusy.value = true;
+  try {
+    await saveSiteConfig({ prazoConfirmacao: deadline.value || '' });
+    toast(deadline.value ? 'Prazo para responder salvo' : 'Prazo removido');
+    emit('config-saved');
+  } catch {
+    toast('Não foi possível salvar o prazo', 'err');
+  } finally {
+    deadlineBusy.value = false;
+  }
+}
 const toast = inject('toast');
 const go = inject('go');
 
@@ -184,6 +208,52 @@ async function applyTag(add) {
     `${add ? 'Tag adicionada a' : 'Tag removida de'} ${selected.value.size} pessoa(s)`,
   );
 }
+/* ---------- Respostas pelo painel (ex.: quem confirmou por telefone ou pessoalmente) ---------- */
+const STATUS_OPTIONS = ['sim', 'nao', 'pendente'];
+async function setStatus(pairs, value, okMsg) {
+  const byCode = new Map();
+  for (const { inv, g } of pairs) {
+    if (!byCode.has(inv.code)) byCode.set(inv.code, { ...inv.respostas });
+    const r = byCode.get(inv.code);
+    if (value === 'pendente') delete r[g.id];
+    else r[g.id] = value;
+  }
+  busy.value = true;
+  try {
+    await saveResponsesBatch(byCode);
+    toast(okMsg);
+  } catch {
+    toast('Não foi possível registrar a resposta', 'err');
+  } finally {
+    busy.value = false;
+  }
+}
+const statusMenu = ref(''); // chave da pessoa com o menu de resposta aberto
+function toggleStatusMenu(key) {
+  statusMenu.value = statusMenu.value === key ? '' : key;
+}
+function chooseStatus(inv, g, value) {
+  statusMenu.value = '';
+  if (statusOf(inv, g) === value) return;
+  setStatus([{ inv, g }], value, `${g.nome.split(' ')[0]}: ${STATUS[value].label.toLowerCase()}`);
+}
+const closeMenus = () => (statusMenu.value = '');
+onMounted(() => document.addEventListener('click', closeMenus));
+onUnmounted(() => document.removeEventListener('click', closeMenus));
+
+const bulkStatus = ref('');
+async function applyStatus() {
+  if (!bulkStatus.value) return;
+  const pairs = [];
+  for (const k of selected.value) {
+    const [code, id] = k.split(':');
+    const inv = props.invites.find((i) => i.code === code);
+    const g = inv?.convidados.find((x) => x.id === id);
+    if (g) pairs.push({ inv, g });
+  }
+  await setStatus(pairs, bulkStatus.value, `${pairs.length} pessoa(s): ${STATUS[bulkStatus.value].label.toLowerCase()}`);
+}
+
 async function unseatSelected() {
   await bulkUpdate((g) => (g.assento = null), `${selected.value.size} pessoa(s) sem lugar`);
 }
@@ -314,6 +384,18 @@ function exportCsv(onlyKeys) {
       </div>
     </div>
 
+    <div class="card gp-deadline">
+      <CalendarClock :size="18" />
+      <div>
+        <strong>Prazo para responder</strong>
+        <small>Aparece na confirmação de presença e nas perguntas frequentes do site.</small>
+      </div>
+      <input v-model="deadline" type="date" aria-label="Data limite para responder" />
+      <button class="b" type="button" :disabled="deadlineBusy || deadline === (config?.prazoConfirmacao || '')" @click="saveDeadline">
+        {{ deadlineBusy ? 'Salvando…' : 'Salvar' }}
+      </button>
+    </div>
+
     <div class="gp-filters card">
       <label class="search">
         <Search :size="16" />
@@ -431,7 +513,31 @@ function exportCsv(onlyKeys) {
               <span :class="['seat-badge', { none: !g.assento }]" :title="seatLabel(g.assento)">
                 <Armchair :size="11" /> {{ seatShort(g.assento) }}
               </span>
-              <span :class="['pill', statusOf(inv, g)]">{{ STATUS[statusOf(inv, g)].short }}</span>
+              <span class="gp-status-wrap" @click.stop>
+                <button
+                  type="button"
+                  :class="['pill', 'gp-pill-btn', statusOf(inv, g)]"
+                  :aria-expanded="statusMenu === keyOf(inv, g)"
+                  title="Alterar resposta"
+                  @click="selecting ? toggle(inv, g) : toggleStatusMenu(keyOf(inv, g))"
+                >
+                  {{ STATUS[statusOf(inv, g)].short }}
+                </button>
+                <Transition name="gp-menu">
+                  <span v-if="statusMenu === keyOf(inv, g)" class="gp-status-menu" role="menu">
+                    <button
+                      v-for="opt in STATUS_OPTIONS"
+                      :key="opt"
+                      type="button"
+                      role="menuitem"
+                      :class="['gp-status-opt', opt, { on: statusOf(inv, g) === opt }]"
+                      @click="chooseStatus(inv, g, opt)"
+                    >
+                      <i></i> {{ STATUS[opt].label }}
+                    </button>
+                  </span>
+                </Transition>
+              </span>
             </div>
           </li>
         </ul>
@@ -490,7 +596,33 @@ function exportCsv(onlyKeys) {
                 <Armchair :size="11" /> {{ seatShort(r.g.assento) }}
               </span>
             </td>
-            <td><span :class="['pill', statusOf(r.inv, r.g)]">{{ STATUS[statusOf(r.inv, r.g)].short }}</span></td>
+            <td>
+              <span class="gp-status-wrap" @click.stop>
+                <button
+                  type="button"
+                  :class="['pill', 'gp-pill-btn', statusOf(r.inv, r.g)]"
+                  :aria-expanded="statusMenu === r.key"
+                  title="Alterar resposta"
+                  @click="selecting ? toggle(r.inv, r.g) : toggleStatusMenu(r.key)"
+                >
+                  {{ STATUS[statusOf(r.inv, r.g)].short }}
+                </button>
+                <Transition name="gp-menu">
+                  <span v-if="statusMenu === r.key" class="gp-status-menu" role="menu">
+                    <button
+                      v-for="opt in STATUS_OPTIONS"
+                      :key="opt"
+                      type="button"
+                      role="menuitem"
+                      :class="['gp-status-opt', opt, { on: statusOf(r.inv, r.g) === opt }]"
+                      @click="chooseStatus(r.inv, r.g, opt)"
+                    >
+                      <i></i> {{ STATUS[opt].label }}
+                    </button>
+                  </span>
+                </Transition>
+              </span>
+            </td>
             <td class="hide-sm"><span class="gp-code-mini">{{ r.inv.code }}</span></td>
             <td class="gp-col-act">
               <button class="b icon" type="button" title="Editar convite" @click.stop="openEdit(r.inv)"><Pencil :size="14" /></button>
@@ -504,6 +636,16 @@ function exportCsv(onlyKeys) {
     <Transition name="gp-bar">
       <div v-if="selecting" class="gp-bulk card">
         <strong>{{ selected.size }} selecionada(s)</strong>
+        <div class="gp-bulk-group">
+          <UserCheck :size="15" />
+          <select v-model="bulkStatus" aria-label="Resposta">
+            <option value="">Resposta…</option>
+            <option value="sim">Confirmar presença</option>
+            <option value="nao">Marcar que não vai</option>
+            <option value="pendente">Voltar para "a confirmar"</option>
+          </select>
+          <button class="b primary" type="button" :disabled="!selected.size || !bulkStatus || busy" @click="applyStatus">Aplicar</button>
+        </div>
         <div class="gp-bulk-group">
           <Tag :size="15" />
           <select v-model="bulkTag" aria-label="Tag">
@@ -645,6 +787,33 @@ function exportCsv(onlyKeys) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.gp-deadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  color: var(--gold);
+}
+.gp-deadline div {
+  flex: 1;
+  min-width: 180px;
+}
+.gp-deadline strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+.gp-deadline small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.gp-deadline input {
+  width: auto;
+  min-height: 40px;
 }
 .gp-filters {
   display: grid;
@@ -998,6 +1167,89 @@ function exportCsv(onlyKeys) {
 }
 .gp-row-leave-active {
   display: none;
+}
+
+/* resposta editável pelo painel */
+.gp-status-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.gp-pill-btn {
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    border-color 0.2s,
+    transform 0.2s var(--ease);
+}
+.gp-pill-btn:hover {
+  border-color: currentColor;
+}
+.gp-pill-btn:active {
+  transform: scale(0.95);
+}
+.gp-status-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  display: grid;
+  min-width: 170px;
+  padding: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--panel-2);
+  box-shadow: 0 20px 40px -14px rgba(0, 0, 0, 0.8);
+}
+.gp-status-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+}
+.gp-status-opt:hover,
+.gp-status-opt.on {
+  background: rgba(255, 255, 255, 0.06);
+}
+.gp-status-opt i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.gp-status-opt.sim i {
+  background: var(--ok);
+}
+.gp-status-opt.nao i {
+  background: var(--no);
+}
+.gp-status-opt.pendente i {
+  border: 1.5px solid var(--wait);
+}
+.gp-menu-enter-active,
+.gp-menu-leave-active {
+  transition:
+    opacity 0.2s,
+    transform 0.25s var(--ease);
+}
+.gp-menu-enter-from,
+.gp-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
+}
+.gp-table-wrap {
+  overflow: visible;
+}
+@media (max-width: 760px) {
+  .gp-table-wrap {
+    overflow-x: auto;
+  }
 }
 
 /* barra de ações em massa */

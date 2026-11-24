@@ -18,7 +18,7 @@ import {
   ArrowLeft,
 } from 'lucide-vue-next';
 import { getInvite, saveRsvp, normalizeCode, getSiteConfig } from './api.js';
-import { MAP_URL, MAP_EMBED, googleCalendarUrl, downloadIcs } from './calendar.js';
+import { MAP_URL, googleCalendarUrl, downloadIcs } from './calendar.js';
 import SiteSections from './SiteSections.vue';
 import { vReveal, reducedMotion } from './reveal.js';
 import { defineAsyncComponent } from 'vue';
@@ -46,7 +46,9 @@ const lightbox = ref(-1);
 const navLinks = [
   { id: 'inicio', label: 'Início' },
   { id: 'cerimonia', label: 'O grande dia' },
+  { id: 'dress-code', label: 'Dress code' },
   { id: 'galeria', label: 'Galeria' },
+  { id: 'faq', label: 'Dúvidas' },
   { id: 'presentes', label: 'Presentes', href: '#/presentes' },
 ];
 
@@ -166,7 +168,7 @@ const weddingArrived = computed(() => now.value >= wedding);
 const mapUrl = MAP_URL;
 const calendarUrl = googleCalendarUrl();
 
-/* conteúdo editável pelo painel (história, dress code, dicas, perguntas, prazo) */
+/* prazo de confirmação definido no painel (Convidados) */
 const siteConfig = ref({});
 const deadlineText = computed(() => {
   const d = siteConfig.value.prazoConfirmacao;
@@ -416,7 +418,7 @@ onMounted(() => {
     history.replaceState(null, '', location.pathname + location.search);
     nextTick(() => setTimeout(() => scrollToSection(id), introDone.value ? 0 : 400));
   }
-  // conteúdo editável (só depois da abertura, para não disputar a rede com a ilustração)
+  // prazo de confirmação (só depois da abertura, para não disputar a rede com a ilustração)
   const loadContent = () => getSiteConfig().then((c) => (siteConfig.value = c || {})).catch(() => {});
   if (introDone.value) loadContent();
   else watch(introDone, (v) => v && loadContent(), { once: true });
@@ -616,8 +618,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <SiteSections part="historia" :config="siteConfig" />
-
       <!-- Cerimônia -->
       <section id="cerimonia" class="ceremony section-wrap">
         <div class="ceremony-copy">
@@ -642,14 +642,6 @@ onUnmounted(() => {
             <strong class="venue-name">Cerimônia · <i>Cerimonial Casa Rio</i></strong>
             <p class="venue-address">R. João Marques de Oliveira, 53<br />Buraquinho — Lauro de Freitas, BA</p>
           </div>
-          <div v-reveal="550" class="venue-map">
-            <iframe
-              :src="MAP_EMBED"
-              title="Mapa do Cerimonial Casa Rio"
-              loading="lazy"
-              referrerpolicy="no-referrer-when-downgrade"
-            ></iframe>
-          </div>
           <div v-reveal="600" class="ceremony-actions">
             <a class="btn btn-outline" :href="mapUrl" target="_blank" rel="noopener noreferrer">
               Como chegar <ExternalLink :size="16" />
@@ -673,7 +665,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <SiteSections part="dress" :config="siteConfig" />
+      <SiteSections part="dress" />
 
       <!-- Citação -->
       <section class="quote-band">
@@ -713,7 +705,7 @@ onUnmounted(() => {
         <p class="gallery-note">Imagens conceituais de inspiração. Fotos reais poderão ser adicionadas depois.</p>
       </section>
 
-      <SiteSections part="dicas" :config="siteConfig" />
+      <SiteSections part="dicas" />
 
       <!-- Presentes -->
       <section id="presentes" class="gifts">
@@ -734,7 +726,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <SiteSections part="faq" :config="siteConfig" />
+      <SiteSections part="faq" :deadline="deadlineText" />
 
       <!-- RSVP -->
       <section id="presenca" class="rsvp-section">

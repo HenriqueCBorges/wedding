@@ -2,7 +2,7 @@
 // Painel dos noivos (#/admin): login, navegação e dados em tempo real.
 // Cada seção fica em src/admin/*.vue.
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { LayoutDashboard, Users, Armchair, Gift, PenLine, LogOut, ExternalLink, Check, AlertCircle } from 'lucide-vue-next';
+import { LayoutDashboard, Users, Armchair, Gift, LogOut, ExternalLink, Check, AlertCircle } from 'lucide-vue-next';
 import { login, logout, watchUser, emailToUser, watchInvites, getSiteConfig, watchTables, watchGifts } from './api.js';
 import { flattenGuests } from './admin/seating.js';
 import OverviewPanel from './admin/OverviewPanel.vue';
@@ -10,7 +10,6 @@ import GuestsPanel from './admin/GuestsPanel.vue';
 import SeatingPanel from './admin/SeatingPanel.vue';
 import ImportPanel from './admin/ImportPanel.vue';
 import GiftsReceivedPanel from './admin/GiftsReceivedPanel.vue';
-import ContentPanel from './admin/ContentPanel.vue';
 import './admin/admin.css';
 
 /* ---------- Sessão ---------- */
@@ -126,7 +125,6 @@ const sections = [
   { id: 'convidados', label: 'Convidados', icon: Users },
   { id: 'mesas', label: 'Mesas', icon: Armchair },
   { id: 'presentes', label: 'Presentes', icon: Gift },
-  { id: 'site', label: 'Site', icon: PenLine },
 ];
 // seções acessadas por botões dentro de outras (não aparecem no menu)
 const titles = { importar: 'Importar' };
@@ -224,10 +222,9 @@ provide('go', go);
         </div>
         <Transition v-else name="adm-panel" mode="out-in">
           <OverviewPanel v-if="section === 'geral'" key="geral" :guests="guests" :invites="invites" :tables="tables" :gifts="gifts" />
-          <GuestsPanel v-else-if="section === 'convidados'" key="convidados" :invites="invites" :guests="guests" :tables="tables" />
+          <GuestsPanel v-else-if="section === 'convidados'" key="convidados" :invites="invites" :guests="guests" :tables="tables" :config="config" @config-saved="reloadConfig" />
           <SeatingPanel v-else-if="section === 'mesas'" key="mesas" :invites="invites" :guests="guests" :tables="tables" />
           <ImportPanel v-else-if="section === 'importar'" key="importar" :invites="invites" />
-          <ContentPanel v-else-if="section === 'site'" key="site" :config="config" @saved="reloadConfig" />
           <GiftsReceivedPanel v-else key="presentes" :gifts="gifts" :config="config" @config-saved="reloadConfig" />
         </Transition>
       </main>
@@ -575,7 +572,7 @@ provide('go', go);
     bottom: calc(10px + env(safe-area-inset-bottom));
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     padding: 6px;
     border: 1px solid var(--line-2);
     border-radius: 20px;

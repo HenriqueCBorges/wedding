@@ -171,6 +171,20 @@ export async function updateInvitesBatch(updates) {
   await batch.commit();
 }
 
+/* ---------- Respostas registradas pelos noivos (confirmação pelo painel) ---------- */
+/** @param {Map<string, object>} updates  código do convite → mapa completo de respostas */
+export async function saveResponsesBatch(updates) {
+  const { db: d, fs } = await db();
+  const batch = fs.writeBatch(d);
+  for (const [code, respostas] of updates)
+    batch.update(fs.doc(d, 'convites', code), {
+      respostas,
+      respondidoEm: Object.keys(respostas).length ? fs.serverTimestamp() : null,
+      atualizadoEm: fs.serverTimestamp(),
+    });
+  await batch.commit();
+}
+
 /* ---------- Configuração das mesas (nomes e cadeiras) ---------- */
 export async function watchTables(callback) {
   const { db: d, fs } = await db();
