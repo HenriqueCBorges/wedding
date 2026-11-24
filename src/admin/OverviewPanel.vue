@@ -1,12 +1,36 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue';
-import { Users, CheckCircle2, Clock3, XCircle, Armchair, ArrowUpRight, CalendarHeart, HandCoins, BellRing } from 'lucide-vue-next';
+import { Users, CheckCircle2, Clock3, XCircle, Armchair, ArrowUpRight, CalendarHeart, HandCoins, BellRing, DatabaseBackup } from 'lucide-vue-next';
+import { exportBackup } from '../api.js';
 import { TAGS, SIDES, STATUS, capacityOf } from './seating.js';
 import { formatPrice } from '../gifts.js';
 
 const props = defineProps({ guests: Array, invites: Array, tables: Object, gifts: Array });
 const totalSeats = computed(() => capacityOf(props.tables));
 const go = inject('go');
+
+/* cópia de segurança: baixa um .json com convites, respostas, mesas, presentes e configurações */
+const backupBusy = ref(false);
+const backupError = ref('');
+async function downloadBackup() {
+  backupBusy.value = true;
+  backupError.value = '';
+  try {
+    const data = await exportBackup();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    const d = new Date();
+    const stamp = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'casamento-copia-' + stamp + '.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } catch {
+    backupError.value = 'Não deu para gerar a cópia agora. Verifique a internet e tente de novo.';
+  } finally {
+    backupBusy.value = false;
+  }
+}
 
 const total = computed(() => props.guests.length);
 const count = (s) => props.guests.filter((g) => g.status === s).length;
@@ -292,10 +316,53 @@ const days = computed(() => Math.max(0, Math.ceil((Date.UTC(2027, 7, 22, 18, 30)
         </ul>
       </article>
     </div>
+
+    <article class="card ov-backup rise" style="--i: 9">
+      <span class="ov-kpi-icon"><DatabaseBackup :size="18" /></span>
+      <div>
+        <h2>Cópia de segurança</h2>
+        <p class="muted">Baixa um arquivo com todos os convites, respostas, mesas, presentes e configurações. Vale guardar um de vez em quando, principalmente perto do prazo.</p>
+        <p v-if="backupError" class="ov-backup-err">{{ backupError }}</p>
+      </div>
+      <button class="b" type="button" :disabled="backupBusy" @click="downloadBackup">
+        {{ backupBusy ? 'Gerando…' : 'Baixar cópia' }}
+      </button>
+    </article>
   </section>
 </template>
 
 <style scoped>
+.ov-backup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px 20px;
+}
+.ov-backup > div {
+  flex: 1;
+}
+.ov-backup h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+.ov-backup p {
+  margin: 0;
+  font-size: 13px;
+}
+.ov-backup-err {
+  margin-top: 6px !important;
+  color: #b3423a;
+}
+@media (max-width: 620px) {
+  .ov-backup {
+    flex-wrap: wrap;
+  }
+  .ov-backup .b {
+    width: 100%;
+    justify-content: center;
+  }
+}
 .ov-count {
   display: flex;
   align-items: center;

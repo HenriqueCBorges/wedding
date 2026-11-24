@@ -17,9 +17,27 @@ const config = {
 const useEmulator =
   import.meta.env.DEV && typeof location !== 'undefined' && location.search.includes('emulador');
 
+// App Check: só aceita acessos vindos do próprio site (bloqueia robôs tentando códigos de convite).
+// Liga sozinho quando existe a chave do reCAPTCHA v3 em VITE_APPCHECK_SITE_KEY (.env.production).
+export const APPCHECK_KEY = import.meta.env.VITE_APPCHECK_SITE_KEY || '';
+async function startAppCheck(a) {
+  if (!APPCHECK_KEY || useEmulator) return;
+  try {
+    if (import.meta.env.DEV) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true; // token de teste no console
+    const { initializeAppCheck, ReCaptchaV3Provider } = await import('firebase/app-check');
+    initializeAppCheck(a, { provider: new ReCaptchaV3Provider(APPCHECK_KEY), isTokenAutoRefreshEnabled: true });
+  } catch (e) {
+    console.warn('App Check indisponível', e);
+  }
+}
+
 let appPromise;
 function app() {
-  appPromise ??= import('firebase/app').then(({ initializeApp }) => initializeApp(config));
+  appPromise ??= import('firebase/app').then(async ({ initializeApp }) => {
+    const a = initializeApp(config);
+    await startAppCheck(a);
+    return a;
+  });
   return appPromise;
 }
 

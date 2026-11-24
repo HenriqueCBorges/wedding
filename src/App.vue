@@ -156,15 +156,21 @@ const countdownLabels = [
   ['minuto', 'minutos'],
   ['segundo', 'segundos'],
 ];
-const countdown = computed(() =>
-  timeUntil(now.value, wedding).map((n, i) => ({
+// anos e meses zerados à esquerda não aparecem (ex.: "00 anos" some quando falta menos de um ano)
+const countdown = computed(() => {
+  const parts = timeUntil(now.value, wedding);
+  let first = 0;
+  while (first < 2 && parts[first] === 0) first++;
+  return parts.slice(first).map((n, k) => ({
     n: String(n).padStart(2, '0'),
-    label: countdownLabels[i][n === 1 ? 0 : 1],
-  })),
-);
+    label: countdownLabels[first + k][n === 1 ? 0 : 1],
+    unit: first + k,
+  }));
+});
 const weddingArrived = computed(() => now.value >= wedding);
 
 /* ---------- Conteúdo ---------- */
+const hasAppCheck = !!import.meta.env.VITE_APPCHECK_SITE_KEY; // aviso do reCAPTCHA no rodapé (o selo flutuante fica oculto)
 const mapUrl = MAP_URL;
 const calendarUrl = googleCalendarUrl();
 
@@ -590,9 +596,9 @@ onUnmounted(() => {
         </div>
 
         <div class="hero-bottom">
-          <div class="countdown hero-in" style="--d: 7" role="timer" aria-label="Contagem regressiva para o casamento">
+          <div class="countdown hero-in" :class="{ 'count-full': countdown.length > 5 }" :style="{ '--d': 7, '--n': countdown.length }" role="timer" aria-label="Contagem regressiva para o casamento">
             <template v-if="!weddingArrived">
-              <div v-for="item in countdown" :key="item.label" class="count-item">
+              <div v-for="item in countdown" :key="item.unit" class="count-item">
                 <div class="count-num">
                   <Transition name="tick">
                     <strong :key="item.n">{{ item.n }}</strong>
@@ -704,7 +710,6 @@ onUnmounted(() => {
             </button>
           </figure>
         </div>
-        <p class="gallery-note">Imagens conceituais de inspiração. Fotos reais poderão ser adicionadas depois.</p>
       </section>
 
       <!-- Presentes -->
@@ -759,6 +764,10 @@ onUnmounted(() => {
       <p>Stefania &amp; Henrique</p>
       <small>22 de agosto de 2027 · Lauro de Freitas, BA</small>
       <span>Feito com amor <Heart :size="12" class="beat" /></span>
+      <small v-if="hasAppCheck" class="recaptcha-note">
+        Protegido pelo reCAPTCHA · <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacidade</a> e
+        <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Termos</a> do Google
+      </small>
     </footer>
 
     <!-- Modal RSVP -->

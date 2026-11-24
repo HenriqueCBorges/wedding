@@ -233,3 +233,28 @@ export async function deleteGift(id) {
   const { db: d, fs } = await db();
   await fs.deleteDoc(fs.doc(d, 'presentes', id));
 }
+
+/* ---------- Cópia de segurança (painel) ---------- */
+// Lê tudo o que o site guarda e devolve um objeto simples, pronto para virar arquivo .json.
+export async function exportBackup() {
+  const { db: d, fs } = await db();
+  const plain = (v) => {
+    if (v && typeof v.toDate === 'function') return v.toDate().toISOString(); // datas do Firestore
+    if (Array.isArray(v)) return v.map(plain);
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plain(x)]));
+    return v;
+  };
+  const all = async (name) =>
+    (await fs.getDocs(fs.collection(d, name))).docs.map((s) => ({ id: s.id, ...plain(s.data()) }));
+  const one = async (path, id) => {
+    const s = await fs.getDoc(fs.doc(d, path, id));
+    return s.exists() ? plain(s.data()) : null;
+  };
+  const [convites, presentes, mesas, site] = await Promise.all([
+    all('convites'),
+    all('presentes'),
+    one('admin', 'mesas'),
+    one('config', 'site'),
+  ]);
+  return { geradoEm: new Date().toISOString(), convites, presentes, mesas, config: site };
+}

@@ -656,7 +656,7 @@ p {
 /* ---------- Contagem ---------- */
 .countdown {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 96px));
+  grid-template-columns: repeat(var(--n, 6), minmax(0, 96px));
   justify-content: center;
   gap: 12px;
   margin: 0 auto;
@@ -1193,12 +1193,6 @@ p {
 .gallery-btn:focus-visible .gallery-overlay {
   opacity: 1;
   transform: none;
-}
-.gallery-note {
-  text-align: center;
-  font-size: 11px;
-  color: #87909c;
-  margin-top: 30px;
 }
 
 /* ---------- Presentes ---------- */
@@ -2291,7 +2285,13 @@ p {
   .hero-orn {
     width: 120px;
   }
+  /* até 5 unidades: uma linha só no celular */
   .countdown {
+    grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr));
+    gap: 7px;
+    max-width: 420px;
+  }
+  .countdown.count-full {
     grid-template-columns: repeat(3, minmax(0, 100px));
     gap: 10px;
   }
@@ -2307,7 +2307,8 @@ p {
     line-height: 38px;
   }
   .count-item span {
-    font-size: 8px;
+    font-size: 7.5px;
+    letter-spacing: 0.1em;
   }
   .marquee span {
     font-size: 18px;
@@ -2408,4 +2409,18 @@ p {
   .nav {
     background: #fffdf9;
   }
+}
+
+/* App Check: o selo flutuante do reCAPTCHA some; o aviso fica no rodapé */
+.grecaptcha-badge {
+  visibility: hidden;
+}
+.site-footer .recaptcha-note {
+  display: block;
+  margin-top: 10px;
+  font-size: 10.5px;
+  opacity: 0.7;
+}
+.site-footer .recaptcha-note a {
+  text-decoration: underline;
 }
