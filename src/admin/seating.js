@@ -51,7 +51,6 @@ export function flattenGuests(invites) {
         status: inv.respostas?.[g.id] || 'pendente',
         respondidoEm: inv.respondidoEm,
         telefone: inv.telefone || '',
-        ladoConvidado: inv.lado || '',
       });
   return out;
 }

@@ -121,12 +121,13 @@ const weeks = computed(() => {
   }));
 });
 
-/* convidados da noiva × do noivo */
-const sidesSplit = computed(() => {
-  const c = { noiva: 0, noivo: 0, ambos: 0, sem: 0 };
-  for (const g of props.guests) c[g.ladoConvidado || 'sem']++;
-  const t = props.guests.length || 1;
-  return { ...c, pNoiva: (c.noiva / t) * 100, pNoivo: (c.noivo / t) * 100, pAmbos: (c.ambos / t) * 100 };
+/* para o buffet: adultos e crianças entre os confirmados */
+const buffet = computed(() => {
+  const ok = props.guests.filter((g) => g.status === 'sim');
+  const kids = ok.filter((g) => g.tags.includes('crianca')).length;
+  const adults = ok.length - kids;
+  const t = ok.length || 1;
+  return { adults, kids, pAdults: (adults / t) * 100, pKids: (kids / t) * 100 };
 });
 
 /* presentes e pendências */
@@ -249,16 +250,14 @@ const days = computed(() => Math.max(0, Math.ceil((Date.UTC(2027, 7, 22, 18, 30)
       <article class="card ov-box rise" style="--i: 10">
         <header><h2>Resumo</h2></header>
         <div class="ov-split">
+          <p class="ov-split-title">Para o buffet (confirmados)</p>
           <div class="ov-split-bar">
-            <i class="noiva" :style="{ width: drawn ? sidesSplit.pNoiva + '%' : '0%' }"></i>
-            <i class="ambos" :style="{ width: drawn ? sidesSplit.pAmbos + '%' : '0%' }"></i>
-            <i class="noivo" :style="{ width: drawn ? sidesSplit.pNoivo + '%' : '0%' }"></i>
+            <i class="adultos" :style="{ width: drawn ? buffet.pAdults + '%' : '0%' }"></i>
+            <i class="criancas" :style="{ width: drawn ? buffet.pKids + '%' : '0%' }"></i>
           </div>
           <ul>
-            <li><b class="noiva"></b> Noiva <strong>{{ sidesSplit.noiva }}</strong></li>
-            <li><b class="ambos"></b> Ambos <strong>{{ sidesSplit.ambos }}</strong></li>
-            <li><b class="noivo"></b> Noivo <strong>{{ sidesSplit.noivo }}</strong></li>
-            <li v-if="sidesSplit.sem"><b></b> Sem definição <strong>{{ sidesSplit.sem }}</strong></li>
+            <li><b class="adultos"></b> Adultos <strong>{{ buffet.adults }}</strong></li>
+            <li><b class="criancas"></b> Crianças <strong>{{ buffet.kids }}</strong></li>
           </ul>
         </div>
         <div class="ov-mini">
@@ -642,14 +641,16 @@ const days = computed(() => Math.max(0, Math.ceil((Date.UTC(2027, 7, 22, 18, 30)
   height: 100%;
   transition: width 1.2s var(--ease);
 }
-.ov-split .noiva {
-  background: #e9a8c4;
+.ov-split-title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
 }
-.ov-split .noivo {
+.ov-split .adultos {
   background: #8fa3e2;
 }
-.ov-split .ambos {
-  background: var(--gold);
+.ov-split .criancas {
+  background: var(--kid);
 }
 .ov-split ul {
   display: grid;

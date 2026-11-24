@@ -18,6 +18,8 @@ import {
   BellRing,
   Tag,
   UserMinus,
+  LayoutGrid,
+  List,
 } from 'lucide-vue-next';
 import { saveInvite, deleteInvite, inviteExists, randomCode, randomId, saveGuestsBatch } from '../api.js';
 import { TAGS, tagById, STATUS, SIDES, seatShort, seatLabel, seatKey, strip, tablesFor, tableTitle } from './seating.js';
@@ -34,21 +36,23 @@ const tag = ref('todas');
 const more = ref(false); // painel de filtros extras
 const seat = ref('todos'); // todos | com | sem | A | B
 const kind = ref('todos'); // todos | familia | individual
-const lado = ref('todos'); // todos | noiva | noivo | ambos
+const view = ref('cards'); // cards (por família) | lista
 const recent = ref(false); // respondeu nos últimos 7 dias
 const sort = ref('nome'); // nome | recentes | mesa
 
 const statusOf = (inv, g) => inv.respostas[g.id] || 'pendente';
 const titleOf = (inv) => inv.familia || inv.convidados[0]?.nome || '(sem nome)';
 const extraCount = computed(
-  () => [seat.value !== 'todos', kind.value !== 'todos', lado.value !== 'todos', recent.value].filter(Boolean).length,
+  () => [seat.value !== 'todos', kind.value !== 'todos', recent.value].filter(Boolean).length,
 );
 function clearExtras() {
-  seat.value = kind.value = lado.value = 'todos';
+  seat.value = kind.value = 'todos';
   recent.value = false;
 }
 const weekAgo = () => Date.now() - 7 * 86400000;
 function guestMatches(inv, g) {
+  const q = strip(search.value);
+  if (q && !strip(g.nome).includes(q) && !strip(inv.familia).includes(q) && !inv.code.toLowerCase().includes(q)) return false;
   if (status.value !== 'todos' && statusOf(inv, g) !== status.value) return false;
   if (tag.value !== 'todas' && !(g.tags || []).includes(tag.value)) return false;
   if (seat.value === 'com' && !g.assento) return false;
@@ -65,7 +69,6 @@ const visible = computed(() => {
   const list = props.invites.filter((inv) => {
     if (kind.value === 'familia' && !inv.familia) return false;
     if (kind.value === 'individual' && inv.familia) return false;
-    if (lado.value !== 'todos' && inv.lado !== lado.value) return false;
     if (recent.value && !(inv.respondidoEm && inv.respondidoEm > weekAgo())) return false;
     if (!inv.convidados.some((g) => guestMatches(inv, g))) return false;
     if (!q) return true;
@@ -78,6 +81,23 @@ const visible = computed(() => {
   };
   return list.sort(by[sort.value]);
 });
+/* só as pessoas que batem com os filtros (tag, resposta, lugar, busca) */
+const peopleOf = (inv) => inv.convidados.filter((g) => guestMatches(inv, g));
+const filtering = computed(() => !!search.value.trim() || status.value !== 'todos' || tag.value !== 'todas' || seat.value !== 'todos');
+
+/* visualização em lista: uma linha por pessoa */
+const rows = computed(() => {
+  const list = visible.value.flatMap((inv) => peopleOf(inv).map((g) => ({ inv, g, key: keyOf(inv, g) })));
+  const by = {
+    nome: (a, b) => a.g.nome.localeCompare(b.g.nome, 'pt-BR'),
+    recentes: (a, b) => (b.inv.respondidoEm || 0) - (a.inv.respondidoEm || 0) || a.g.nome.localeCompare(b.g.nome, 'pt-BR'),
+    mesa: (a, b) => seatOrder(a.g.assento) - seatOrder(b.g.assento) || a.g.nome.localeCompare(b.g.nome, 'pt-BR'),
+  };
+  return list.sort(by[sort.value]);
+});
+const seatOrder = (s) => (s ? (s.lado === 'A' ? 0 : 1000) + s.mesa * 20 + s.cadeira : 99999);
+const shownPeople = computed(() => rows.value.length);
+
 const counts = computed(() => {
   const c = { todos: props.guests.length, sim: 0, nao: 0, pendente: 0 };
   for (const g of props.guests) c[g.status]++;
@@ -113,7 +133,7 @@ function toggle(inv, g) {
   selected.value = s;
 }
 function toggleInvite(inv) {
-  const keys = inv.convidados.map((g) => keyOf(inv, g));
+  const keys = peopleOf(inv).map((g) => keyOf(inv, g));
   const all = keys.every((k) => selected.value.has(k));
   const s = new Set(selected.value);
   keys.forEach((k) => (all ? s.delete(k) : s.add(k)));
@@ -121,7 +141,7 @@ function toggleInvite(inv) {
 }
 function selectVisible() {
   const s = new Set();
-  for (const inv of visible.value) for (const g of inv.convidados) if (guestMatches(inv, g)) s.add(keyOf(inv, g));
+  for (const r of rows.value) s.add(r.key);
   selected.value = s;
 }
 function stopSelecting() {
@@ -203,7 +223,7 @@ const editorError = ref('');
 const saving = ref(false);
 const blankGuest = () => ({ id: randomId(), nome: '', tags: [], assento: null });
 function openNew() {
-  editor.value = { isNew: true, code: randomCode(), familia: '', telefone: '', lado: '', convidados: [blankGuest()], respostas: {} };
+  editor.value = { isNew: true, code: randomCode(), familia: '', telefone: '', convidados: [blankGuest()], respostas: {} };
   editorError.value = '';
 }
 function openEdit(inv) {
@@ -212,7 +232,6 @@ function openEdit(inv) {
     code: inv.code,
     familia: inv.familia || '',
     telefone: inv.telefone || '',
-    lado: inv.lado || '',
     convidados: inv.convidados.map((g) => ({ ...g, tags: [...(g.tags || [])] })),
     respostas: { ...inv.respostas },
   };
@@ -250,28 +269,24 @@ async function remove(inv) {
 }
 
 /* ---------- Exportar ---------- */
-const ladoLabel = { noiva: 'Noiva', noivo: 'Noivo', ambos: 'Ambos' };
 function exportCsv(onlyKeys) {
   const only = onlyKeys ? new Set(onlyKeys) : null;
-  const rows = [['Código', 'Família', 'Convidado', 'Resposta', 'Tags', 'Lugar', 'Convidado de', 'WhatsApp', 'Respondido em', 'Link do convite']];
-  const source = only ? props.invites : visible.value;
-  for (const inv of source)
-    for (const g of inv.convidados) {
-      if (only && !only.has(keyOf(inv, g))) continue;
-      rows.push([
-        inv.code,
-        inv.familia || '',
-        g.nome,
-        STATUS[statusOf(inv, g)].label,
-        (g.tags || []).map((t) => tagById[t]?.label).join(', '),
-        seatLabel(g.assento),
-        ladoLabel[inv.lado] || '',
-        inv.telefone || '',
-        inv.respondidoEm ? inv.respondidoEm.toLocaleString('pt-BR') : '',
-        inviteLink(inv.code),
-      ]);
-    }
-  const csv = '﻿' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const out = [['Código', 'Família', 'Convidado', 'Resposta', 'Tags', 'Lugar', 'WhatsApp', 'Respondido em', 'Link do convite']];
+  // exporta exatamente o que está na tela (ou só a seleção)
+  const source = only ? props.invites.flatMap((inv) => inv.convidados.filter((g) => only.has(keyOf(inv, g))).map((g) => ({ inv, g }))) : rows.value;
+  for (const { inv, g } of source)
+    out.push([
+      inv.code,
+      inv.familia || '',
+      g.nome,
+      STATUS[statusOf(inv, g)].label,
+      (g.tags || []).map((t) => tagById[t]?.label).join(', '),
+      seatLabel(g.assento),
+      inv.telefone || '',
+      inv.respondidoEm ? inv.respondidoEm.toLocaleString('pt-BR') : '',
+      inviteLink(inv.code),
+    ]);
+  const csv = '﻿' + out.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `convidados-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -286,7 +301,10 @@ function exportCsv(onlyKeys) {
       <div>
         <p class="eyebrow">Lista</p>
         <h1>Convidados</h1>
-        <p>{{ invites.length }} convites · {{ guests.length }} pessoas</p>
+        <p>
+          {{ invites.length }} convites · {{ guests.length }} pessoas
+          <template v-if="filtering"> · <b class="gp-shown">{{ shownPeople }} no filtro</b></template>
+        </p>
       </div>
       <div class="gp-actions">
         <button class="b" type="button" @click="reminders = true"><BellRing :size="15" /> Lembrar pendentes</button>
@@ -321,6 +339,10 @@ function exportCsv(onlyKeys) {
           </button>
         </div>
         <div class="gp-tools">
+          <div class="segmented gp-view">
+            <button :class="{ on: view === 'cards' }" aria-label="Ver por família" @click="view = 'cards'"><LayoutGrid :size="15" /> Famílias</button>
+            <button :class="{ on: view === 'lista' }" aria-label="Ver em lista" @click="view = 'lista'"><List :size="15" /> Lista</button>
+          </div>
           <label class="gp-sort">
             <span class="muted">Ordenar</span>
             <select v-model="sort" aria-label="Ordenar">
@@ -357,15 +379,6 @@ function exportCsv(onlyKeys) {
               <option value="individual">Individual</option>
             </select>
           </label>
-          <label class="field">
-            Convidado de
-            <select v-model="lado">
-              <option value="todos">Todos</option>
-              <option value="noiva">Noiva</option>
-              <option value="noivo">Noivo</option>
-              <option value="ambos">Ambos</option>
-            </select>
-          </label>
           <label class="gp-check"><input v-model="recent" type="checkbox" /> Responderam nos últimos 7 dias</label>
           <button v-if="extraCount" class="b" type="button" @click="clearExtras">Limpar filtros</button>
         </div>
@@ -383,14 +396,16 @@ function exportCsv(onlyKeys) {
     </div>
     <div v-else-if="!visible.length" class="empty">Nenhum convidado com esses filtros.</div>
 
-    <TransitionGroup v-else tag="ul" name="gp-list" class="gp-grid">
+    <TransitionGroup v-else-if="view === 'cards'" tag="ul" name="gp-list" class="gp-grid">
       <li v-for="(inv, i) in visible" :key="inv.code" class="card gp-card rise" :style="{ '--i': Math.min(i, 12) }">
         <header>
           <div>
             <strong class="serif" @click="selecting && toggleInvite(inv)">{{ titleOf(inv) }}</strong>
             <small>
-              {{ inv.familia ? `${inv.convidados.length} pessoa(s)` : 'Convite individual' }}
-              <template v-if="inv.lado"> · {{ ladoLabel[inv.lado] }}</template>
+              <template v-if="inv.familia">
+                {{ filtering && peopleOf(inv).length !== inv.convidados.length ? `${peopleOf(inv).length} de ${inv.convidados.length} pessoas` : `${inv.convidados.length} pessoa(s)` }}
+              </template>
+              <template v-else>Convite individual</template>
             </small>
           </div>
           <button class="gp-code" type="button" title="Copiar código" @click="copy(inv.code, 'c' + inv.code, 'Código copiado')">
@@ -400,9 +415,9 @@ function exportCsv(onlyKeys) {
         </header>
         <ul class="gp-people">
           <li
-            v-for="g in inv.convidados"
+            v-for="g in peopleOf(inv)"
             :key="g.id"
-            :class="{ dim: !guestMatches(inv, g), sel: selected.has(keyOf(inv, g)) }"
+            :class="{ sel: selected.has(keyOf(inv, g)) }"
             @click="selecting && toggle(inv, g)"
           >
             <span v-if="selecting" class="gp-box" aria-hidden="true"><Check :size="12" /></span>
@@ -436,6 +451,54 @@ function exportCsv(onlyKeys) {
         </footer>
       </li>
     </TransitionGroup>
+
+    <!-- Visualização em lista: uma linha por pessoa -->
+    <div v-else class="card gp-table-wrap">
+      <table class="gp-table">
+        <thead>
+          <tr>
+            <th v-if="selecting" class="gp-col-check"></th>
+            <th>Convidado</th>
+            <th class="hide-sm">Família</th>
+            <th>Tags</th>
+            <th>Lugar</th>
+            <th>Resposta</th>
+            <th class="hide-sm">Código</th>
+            <th class="gp-col-act"></th>
+          </tr>
+        </thead>
+        <TransitionGroup tag="tbody" name="gp-row">
+          <tr
+            v-for="r in rows"
+            :key="r.key"
+            :class="{ sel: selected.has(r.key) }"
+            @click="selecting && toggle(r.inv, r.g)"
+          >
+            <td v-if="selecting" class="gp-col-check"><span class="gp-box"><Check :size="12" /></span></td>
+            <td>
+              <strong>{{ r.g.nome }}</strong>
+              <small class="show-sm">{{ r.inv.familia || 'Individual' }}</small>
+            </td>
+            <td class="hide-sm muted">{{ r.inv.familia || 'Individual' }}</td>
+            <td>
+              <span class="gp-tags">
+                <i v-for="t in r.g.tags || []" :key="t" class="tag" :style="{ '--c': tagById[t]?.color }">{{ tagById[t]?.short }}</i>
+              </span>
+            </td>
+            <td>
+              <span :class="['seat-badge', { none: !r.g.assento }]" :title="seatLabel(r.g.assento)">
+                <Armchair :size="11" /> {{ seatShort(r.g.assento) }}
+              </span>
+            </td>
+            <td><span :class="['pill', statusOf(r.inv, r.g)]">{{ STATUS[statusOf(r.inv, r.g)].short }}</span></td>
+            <td class="hide-sm"><span class="gp-code-mini">{{ r.inv.code }}</span></td>
+            <td class="gp-col-act">
+              <button class="b icon" type="button" title="Editar convite" @click.stop="openEdit(r.inv)"><Pencil :size="14" /></button>
+            </td>
+          </tr>
+        </TransitionGroup>
+      </table>
+    </div>
 
     <!-- Barra de ações em massa -->
     <Transition name="gp-bar">
@@ -516,21 +579,10 @@ function exportCsv(onlyKeys) {
                 Família <small>(opcional — vazio = convite individual)</small>
                 <input v-model="editor.familia" placeholder="Ex.: Família Oliveira" />
               </label>
-              <div class="ed-two">
-                <label class="field">
-                  WhatsApp <small>(com DDD)</small>
-                  <input v-model="editor.telefone" inputmode="tel" placeholder="(71) 99999-8888" />
-                </label>
-                <label class="field">
-                  Convidado de
-                  <select v-model="editor.lado">
-                    <option value="">—</option>
-                    <option value="noiva">Noiva</option>
-                    <option value="noivo">Noivo</option>
-                    <option value="ambos">Ambos</option>
-                  </select>
-                </label>
-              </div>
+              <label class="field">
+                WhatsApp <small>(com DDD)</small>
+                <input v-model="editor.telefone" inputmode="tel" placeholder="(71) 99999-8888" />
+              </label>
               <div class="ed-people">
                 <span class="ed-label">Convidados e tags</span>
                 <TransitionGroup name="gp-list">
@@ -784,9 +836,6 @@ function exportCsv(onlyKeys) {
     border-color 0.2s,
     background 0.2s;
 }
-.gp-people > li.dim {
-  opacity: 0.4;
-}
 .gp-selecting .gp-people > li {
   cursor: pointer;
 }
@@ -866,6 +915,89 @@ function exportCsv(onlyKeys) {
 }
 .gp-link.wa {
   color: #7fd6a0;
+}
+
+.gp-shown {
+  font-weight: 500;
+  color: var(--gold);
+}
+.gp-table-wrap {
+  overflow-x: auto;
+}
+.gp-selecting .gp-table-wrap {
+  margin-bottom: 110px;
+}
+.gp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.gp-table th {
+  position: sticky;
+  top: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.gp-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.gp-table tbody tr {
+  transition: background 0.2s;
+}
+.gp-table tbody tr:hover {
+  background: rgba(165, 182, 236, 0.05);
+}
+.gp-selecting .gp-table tbody tr {
+  cursor: pointer;
+}
+.gp-table tr.sel {
+  background: rgba(165, 182, 236, 0.1);
+}
+.gp-table td strong {
+  display: block;
+  font-weight: 500;
+}
+.gp-table .show-sm {
+  display: none;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.gp-col-check {
+  width: 36px;
+}
+.gp-col-act {
+  width: 52px;
+  text-align: right;
+}
+.gp-code-mini {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+}
+.gp-row-move,
+.gp-row-enter-active,
+.gp-row-leave-active {
+  transition:
+    transform 0.35s var(--ease),
+    opacity 0.25s;
+}
+.gp-row-enter-from,
+.gp-row-leave-to {
+  opacity: 0;
+}
+.gp-row-leave-active {
+  display: none;
 }
 
 /* barra de ações em massa */
@@ -977,11 +1109,6 @@ function exportCsv(onlyKeys) {
   font-size: 11px;
   opacity: 0.8;
 }
-.ed-two {
-  display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 10px;
-}
 .ed-people {
   display: grid;
   gap: 10px;
@@ -1058,8 +1185,22 @@ function exportCsv(onlyKeys) {
     flex: 1;
     max-width: none;
   }
-  .ed-two {
-    grid-template-columns: 1fr;
+  .gp-table .hide-sm {
+    display: none;
+  }
+  .gp-table .show-sm {
+    display: block;
+  }
+  .gp-table th,
+  .gp-table td {
+    padding: 9px 8px;
+  }
+  .gp-view {
+    width: 100%;
+  }
+  .gp-view button {
+    flex: 1;
+    justify-content: center;
   }
 }
 </style>

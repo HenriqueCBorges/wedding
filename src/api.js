@@ -7,7 +7,7 @@
 //   config/site        { pixChave, pixNome, pixCidade }              (leitura pública)
 //   admin/mesas        { A: [{ nome, cadeiras }], B: [...] }        (só noivos)
 //   presentes/{id}     { nome, presente, valor, data, agradecido, obs } (só noivos)
-//   convites também têm: telefone (WhatsApp) e lado ('noiva' | 'noivo' | 'ambos')
+//   convites também têm: telefone (WhatsApp)
 //
 // Convidado sem família = convite com uma pessoa e `familia: null`.
 import { db, dbLite, auth } from './firebase.js';
@@ -99,7 +99,6 @@ export async function watchInvites(callback, onError) {
             respondidoEm: x.respondidoEm?.toDate?.() || null,
             criadoEm: x.criadoEm?.toDate?.() || null,
             telefone: x.telefone || '',
-            lado: x.lado || '',
           };
         }),
       ),
@@ -112,7 +111,7 @@ export async function inviteExists(code) {
   return (await fs.getDoc(fs.doc(d, 'convites', code))).exists();
 }
 
-export async function saveInvite({ code, familia, convidados, respostas, telefone, lado }, { isNew }) {
+export async function saveInvite({ code, familia, convidados, respostas, telefone }, { isNew }) {
   const { db: d, fs } = await db();
   const ref = fs.doc(d, 'convites', code);
   const ids = new Set(convidados.map((c) => c.id));
@@ -123,7 +122,6 @@ export async function saveInvite({ code, familia, convidados, respostas, telefon
     convidados: convidados.map(cleanGuest),
     respostas: kept,
     telefone: String(telefone || '').replace(/[^\d+]/g, ''),
-    lado: ['noiva', 'noivo', 'ambos'].includes(lado) ? lado : '',
     atualizadoEm: fs.serverTimestamp(),
   };
   if (isNew) await fs.setDoc(ref, { ...data, criadoEm: fs.serverTimestamp() });
