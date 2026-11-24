@@ -78,7 +78,6 @@ const open = ref(-1);
             <source type="image/avif" :srcset="`/art/${l.img}.avif`" />
             <img :src="`/art/${l.img}.webp`" :alt="`Exemplo de traje: ${l.caption}`" loading="lazy" width="522" :height="l.h" />
           </picture>
-          <figcaption>{{ l.caption }}</figcaption>
         </figure>
       </li>
     </ul>
@@ -175,14 +174,6 @@ const open = ref(-1);
 }
 .ss-looks li:hover img {
   transform: scale(1.05);
-}
-.ss-looks figcaption {
-  margin-top: 12px;
-  text-align: center;
-  font-family: var(--script);
-  font-style: italic;
-  font-size: 1.2rem;
-  color: var(--navy);
 }
 
 /* faixa das cores: linhas finas, como os detalhes da cerimônia */
