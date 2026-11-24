@@ -383,6 +383,8 @@ async function runDrawing() {
     // reaproveita o arquivo que o navegador já escolheu para a ilustração (sem baixar de novo)
     imageSrc:
       sceneImg.value?.currentSrc || (wide ? '/art/casa-rio-ilustracao.webp' : '/art/casa-rio-ilustracao-1200.webp'),
+    // se o AVIF falhar, o desenho usa o WebP
+    fallbackSrc: wide ? '/art/casa-rio-ilustracao.webp' : '/art/casa-rio-ilustracao-1200.webp',
     strokesUrl: '/art/tracos-casa-rio.json',
     speed,
   });

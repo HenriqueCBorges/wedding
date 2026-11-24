@@ -15,9 +15,9 @@ const avoid = [
   { name: 'Bege', color: '#e3d2b4' },
 ];
 const looks = [
-  { img: 'dress-1', h: 865, caption: 'Azul-petróleo & verde-esmeralda' },
-  { img: 'dress-2', h: 803, caption: 'Bordô & azul-marinho' },
-  { img: 'dress-3', h: 865, caption: 'Azul-marinho & ameixa' },
+  { img: 'dress-1', h: 864, caption: 'Azul-petróleo & verde-esmeralda' },
+  { img: 'dress-2', h: 802, caption: 'Bordô & azul-marinho' },
+  { img: 'dress-3', h: 864, caption: 'Azul-marinho & ameixa' },
 ];
 
 /* ---------- Perguntas frequentes ---------- */

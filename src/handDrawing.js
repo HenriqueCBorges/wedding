@@ -114,7 +114,7 @@ function makePen(maskCtx, strokes, lineWidth) {
  * - speed: 1 = ritmo normal; < 1 acelera (ex.: 0.3 ao recarregar a página).
  * - nib: elemento opcional que segue a ponta da pena.
  */
-export function startHandDrawing({ canvas, nib, imageSrc, strokesUrl, speed = 1 }) {
+export function startHandDrawing({ canvas, nib, imageSrc, fallbackSrc, strokesUrl, speed = 1 }) {
   let raf = 0;
   let resolveDone;
   let skipped = false;
@@ -130,7 +130,7 @@ export function startHandDrawing({ canvas, nib, imageSrc, strokesUrl, speed = 1 
     let data;
     try {
       [image, data] = await Promise.all([
-        loadImage(imageSrc),
+        loadImage(imageSrc).catch((err) => (fallbackSrc && fallbackSrc !== imageSrc ? loadImage(fallbackSrc) : Promise.reject(err))),
         fetch(strokesUrl).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
       ]);
     } catch {
