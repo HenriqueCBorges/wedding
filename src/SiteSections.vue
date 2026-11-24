@@ -18,6 +18,11 @@ const avoid = [
   { name: 'Bege', color: '#e3d2b4' },
 ];
 const welcome = ['#1b3474', '#2f6b5a', '#7a2e3a', '#c9786a', '#5d4a8a', '#c9a24a', '#3d7fae', '#1d1d24'];
+const looks = [
+  { img: 'dress-1', caption: 'Azul-marinho & verde-esmeralda' },
+  { img: 'dress-2', caption: 'Grafite & bordô' },
+  { img: 'dress-3', caption: 'Azul-petróleo & índigo' },
+];
 
 /* ---------- Hospedagem e dicas (Vilas do Atlântico fica ao lado de Buraquinho) ---------- */
 const tips = [
@@ -145,6 +150,21 @@ const open = ref(-1);
           </ul>
         </div>
       </div>
+    </div>
+
+    <div class="ss-looks">
+      <p v-reveal class="eyebrow">Inspirações</p>
+      <ul>
+        <li v-for="(l, i) in looks" :key="l.img" v-reveal="i * 140">
+          <figure>
+            <picture>
+              <source type="image/avif" :srcset="`/art/${l.img}.avif`" />
+              <img :src="`/art/${l.img}.webp`" :alt="`Exemplo de traje: ${l.caption}`" loading="lazy" width="494" height="1000" />
+            </picture>
+            <figcaption>{{ l.caption }}</figcaption>
+          </figure>
+        </li>
+      </ul>
     </div>
   </section>
 
@@ -348,6 +368,53 @@ const open = ref(-1);
   color: var(--ink-soft);
 }
 
+/* inspirações: três looks em molduras de arco */
+.ss-looks {
+  max-width: 1080px;
+  margin: 46px auto 0;
+  text-align: center;
+}
+.ss-looks ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ss-looks li:nth-child(2) {
+  margin-top: 34px;
+}
+.ss-looks figure {
+  margin: 0;
+}
+.ss-looks picture {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 494 / 820;
+  border: 1px solid rgba(29, 58, 138, 0.16);
+  border-radius: 999px 999px 20px 20px;
+  background: #6d82a6;
+  box-shadow: 0 26px 50px -30px rgba(11, 31, 73, 0.55);
+}
+.ss-looks img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 12%;
+  transition: transform 1.2s var(--ease-out);
+}
+.ss-looks li:hover img {
+  transform: scale(1.05);
+}
+.ss-looks figcaption {
+  margin-top: 12px;
+  font-family: var(--script);
+  font-style: italic;
+  font-size: 1.15rem;
+  color: var(--navy);
+}
+
 /* ---------- Dicas ---------- */
 .ss-tips {
   display: grid;
@@ -517,6 +584,23 @@ const open = ref(-1);
 @media (max-width: 620px) {
   .ss-tips {
     grid-template-columns: 1fr;
+  }
+  /* no celular, os looks deslizam para o lado */
+  .ss-looks ul {
+    display: flex;
+    gap: 14px;
+    margin: 14px -16px 0;
+    padding: 0 16px 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .ss-looks li {
+    flex: 0 0 68%;
+    scroll-snap-align: center;
+  }
+  .ss-looks li:nth-child(2) {
+    margin-top: 0;
   }
   .ss-dress {
     padding: 20px 16px 80px;
