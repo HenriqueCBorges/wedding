@@ -7,7 +7,7 @@
 //   config/site        { pixChave, pixNome, pixCidade }
 //
 // Convidado sem família = convite com uma pessoa e `familia: null`.
-import { db, auth } from './firebase.js';
+import { db, dbLite, auth } from './firebase.js';
 
 /* ---------- Códigos de convite ---------- */
 // Sem 0/O e 1/I/L para não confundir quem digita o código impresso.
@@ -26,7 +26,7 @@ export const randomId = () => crypto.getRandomValues(new Uint32Array(1))[0].toSt
 
 /* ---------- Área pública ---------- */
 export async function getInvite(code) {
-  const { db: d, fs } = await db();
+  const { db: d, fs } = await dbLite();
   const snap = await fs.getDoc(fs.doc(d, 'convites', normalizeCode(code)));
   if (!snap.exists()) return null;
   const data = snap.data();
@@ -39,7 +39,7 @@ export async function getInvite(code) {
 }
 
 export async function saveRsvp(code, respostas) {
-  const { db: d, fs } = await db();
+  const { db: d, fs } = await dbLite();
   await fs.updateDoc(fs.doc(d, 'convites', normalizeCode(code)), {
     respostas,
     respondidoEm: fs.serverTimestamp(),
@@ -47,7 +47,7 @@ export async function saveRsvp(code, respostas) {
 }
 
 export async function getSiteConfig() {
-  const { db: d, fs } = await db();
+  const { db: d, fs } = await dbLite();
   const snap = await fs.getDoc(fs.doc(d, 'config', 'site'));
   return snap.exists() ? snap.data() : {};
 }

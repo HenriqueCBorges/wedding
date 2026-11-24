@@ -23,6 +23,18 @@ function app() {
   return appPromise;
 }
 
+// Versão "lite" (~4x menor): só leituras e escritas simples. Usada nas páginas dos convidados.
+let litePromise;
+export function dbLite() {
+  litePromise ??= Promise.all([app(), import('firebase/firestore/lite')]).then(([a, fs]) => {
+    const db = fs.getFirestore(a);
+    if (useEmulator) fs.connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    return { db, fs };
+  });
+  return litePromise;
+}
+
+// Versão completa (tempo real, lotes): usada só no painel dos noivos.
 let dbPromise;
 export function db() {
   dbPromise ??= Promise.all([app(), import('firebase/firestore')]).then(([a, fs]) => {

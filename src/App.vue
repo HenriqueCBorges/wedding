@@ -19,8 +19,9 @@ import {
 } from 'lucide-vue-next';
 import { getInvite, saveRsvp, normalizeCode } from './api.js';
 import { vReveal, reducedMotion } from './reveal.js';
-import GiftsPage from './GiftsPage.vue';
 import { defineAsyncComponent } from 'vue';
+// carregadas só quando alguém abre a página (o início do site fica mais leve)
+const GiftsPage = defineAsyncComponent(() => import('./GiftsPage.vue'));
 const AdminPage = defineAsyncComponent(() => import('./AdminPage.vue'));
 import { startHandDrawing } from './handDrawing.js';
 
@@ -309,6 +310,10 @@ function onPointer(e) {
 }
 
 /* ---------- Abertura: desenho à mão ---------- */
+const SCENE_AVIF = '/art/casa-rio-ilustracao-1200.avif 1200w, /art/casa-rio-ilustracao.avif 2400w';
+const SCENE_WEBP = '/art/casa-rio-ilustracao-1200.webp 1200w, /art/casa-rio-ilustracao.webp 2400w';
+const SCENE_SIZES = '(max-width: 720px) 116vw, min(1600px, 100vw)';
+const sceneImg = ref(null);
 const drawCanvas = ref(null);
 const drawNib = ref(null);
 let drawCtl = null;
@@ -326,7 +331,9 @@ async function runDrawing() {
   drawCtl = startHandDrawing({
     canvas: drawCanvas.value,
     nib: drawNib.value,
-    imageSrc: wide ? '/art/casa-rio-ilustracao.webp' : '/art/casa-rio-ilustracao-1200.webp',
+    // reaproveita o arquivo que o navegador já escolheu para a ilustração (sem baixar de novo)
+    imageSrc:
+      sceneImg.value?.currentSrc || (wide ? '/art/casa-rio-ilustracao.webp' : '/art/casa-rio-ilustracao-1200.webp'),
     strokesUrl: '/art/tracos-casa-rio.json',
     speed,
   });
@@ -469,21 +476,24 @@ onUnmounted(() => {
         <!-- Ilustração da Casa Rio -->
         <div class="hero-scene-wrap" data-parallax="-0.14" aria-hidden="true">
           <div class="hero-scene">
-            <img
-              class="scene-img"
-              src="/art/casa-rio-ilustracao.webp"
-              srcset="/art/casa-rio-ilustracao-1200.webp 1200w, /art/casa-rio-ilustracao.webp 2400w"
-              sizes="(max-width: 720px) 116vw, min(1600px, 100vw)"
-              alt=""
-              fetchpriority="high"
-            />
-            <div class="scene-water">
+            <!-- AVIF (~30% menor) com WebP de reserva; as duas camadas usam o mesmo arquivo -->
+            <picture>
+              <source type="image/avif" :srcset="SCENE_AVIF" :sizes="SCENE_SIZES" />
               <img
+                ref="sceneImg"
+                class="scene-img"
                 src="/art/casa-rio-ilustracao.webp"
-                srcset="/art/casa-rio-ilustracao-1200.webp 1200w, /art/casa-rio-ilustracao.webp 2400w"
-                sizes="(max-width: 720px) 116vw, min(1600px, 100vw)"
+                :srcset="SCENE_WEBP"
+                :sizes="SCENE_SIZES"
                 alt=""
+                fetchpriority="high"
               />
+            </picture>
+            <div class="scene-water">
+              <picture>
+                <source type="image/avif" :srcset="SCENE_AVIF" :sizes="SCENE_SIZES" />
+                <img src="/art/casa-rio-ilustracao.webp" :srcset="SCENE_WEBP" :sizes="SCENE_SIZES" alt="" />
+              </picture>
               <span class="scene-glint"></span>
             </div>
             <canvas v-if="willDraw" ref="drawCanvas" class="scene-draw"></canvas>

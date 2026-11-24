@@ -1,7 +1,8 @@
 :root {
   --navy: #0b1f49;
   --navy-deep: #06142f;
-  --gold: #b49368;
+  --gold: #b49368; /* decorativo: linhas, bordas, ícones */
+  --gold-ink: #86663a; /* dourado para textos (contraste 4,7:1 no papel) */
   --gold-soft: #c8ac83;
   --champagne: #d4bb97;
   --ivory: #faf8f4;
@@ -72,7 +73,7 @@ h2 i,
   font-family: var(--script);
   font-style: italic;
   font-weight: 400;
-  color: var(--gold);
+  color: var(--gold-ink);
 }
 p {
   line-height: 1.8;
@@ -195,7 +196,7 @@ p {
   transform-origin: left;
 }
 .scrolled .nav a.active {
-  color: var(--gold);
+  color: var(--gold-ink);
 }
 
 /* ---------- Botões ---------- */
@@ -453,11 +454,11 @@ p {
   text-transform: uppercase;
   letter-spacing: 0.38em;
   font-size: 11px;
-  color: #a5825a;
+  color: var(--gold-ink);
   font-weight: 600;
 }
 .hero .eyebrow {
-  color: var(--gold);
+  color: var(--gold-ink);
   margin-bottom: 4px;
 }
 .hero h1 {
@@ -483,7 +484,7 @@ p {
   font-family: var(--script);
   font-style: italic;
   font-size: 0.7em;
-  color: var(--gold);
+  color: var(--gold-ink);
 }
 .hero-date {
   display: inline-flex;
@@ -873,7 +874,7 @@ p {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--gold-ink);
   margin-bottom: 5px;
 }
 .detail strong {
@@ -1449,7 +1450,7 @@ p {
   padding: 6px 0;
   border: 0;
   background: none;
-  color: var(--gold);
+  color: var(--gold-ink);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1551,7 +1552,7 @@ p {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--gold-ink);
   margin-bottom: 8px;
 }
 .tag {
@@ -1782,10 +1783,10 @@ p {
 }
 .gp-hero h1 i {
   font-family: var(--script);
-  color: var(--gold);
+  color: var(--gold-ink);
 }
 .gp-hero .eyebrow {
-  color: var(--gold);
+  color: var(--gold-ink);
   margin: 26px 0 0;
 }
 .gp-lead {
@@ -1799,7 +1800,7 @@ p {
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--gold-ink);
   transition: gap 0.3s var(--ease-out);
 }
 .gp-back:hover {
@@ -1900,7 +1901,7 @@ p {
   font-family: var(--serif);
   font-size: 1.6rem;
   font-weight: 400;
-  color: var(--gold);
+  color: var(--gold-ink);
   white-space: nowrap;
 }
 .gift-foot .btn {
@@ -1969,7 +1970,7 @@ p {
 .qr-price {
   font-family: var(--serif);
   font-size: 30px;
-  color: var(--gold);
+  color: var(--gold-ink);
   margin: 0 0 18px;
 }
 .qr-box {
@@ -2084,7 +2085,7 @@ p {
 .gp-amount span {
   font-family: var(--serif);
   font-size: 1.2rem;
-  color: var(--gold);
+  color: var(--gold-ink);
 }
 .gp-amount input {
   width: 120px;
@@ -2103,7 +2104,7 @@ p {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--gold);
+  color: var(--gold-ink);
   font-size: 13px;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -2239,7 +2240,7 @@ p {
     display: none;
   }
   .nav a.active {
-    color: var(--gold);
+    color: var(--gold-ink);
   }
   .nav-open a,
   .nav-open .nav-mobile-rsvp {
