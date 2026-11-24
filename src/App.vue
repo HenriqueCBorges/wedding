@@ -17,7 +17,9 @@ import {
   Expand,
   ArrowLeft,
 } from 'lucide-vue-next';
-import { getInvite, saveRsvp, normalizeCode } from './api.js';
+import { getInvite, saveRsvp, normalizeCode, getSiteConfig } from './api.js';
+import { MAP_URL, MAP_EMBED, googleCalendarUrl, downloadIcs } from './calendar.js';
+import SiteSections from './SiteSections.vue';
 import { vReveal, reducedMotion } from './reveal.js';
 import { defineAsyncComponent } from 'vue';
 // carregadas só quando alguém abre a página (o início do site fica mais leve)
@@ -57,6 +59,7 @@ function onHashChange() {
   const hash = location.hash;
   const next = pageFromHash(hash);
   if (next !== 'home') {
+    if (page.value === next) return; // hashchange e popstate podem chegar juntos
     page.value = next;
     window.scrollTo({ top: 0, behavior: 'instant' });
     return;
@@ -70,6 +73,30 @@ function onHashChange() {
     if (target) target.scrollIntoView({ behavior: 'instant' });
     else window.scrollTo({ top: 0, behavior: 'instant' });
   });
+}
+
+/* Âncoras da página (#cerimonia, #galeria…): rola até a seção sem colocar o "#" no endereço.
+   Assim o link que o convidado copia ou compartilha fica sempre limpo. */
+function scrollToSection(id) {
+  const el = id && document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
+  else window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function goSection(id) {
+  closeMenu();
+  if (page.value !== 'home') {
+    history.pushState(null, '', location.pathname + location.search);
+    page.value = 'home';
+    nextTick(() => requestAnimationFrame(() => scrollToSection(id)));
+  } else scrollToSection(id);
+}
+function onAnchorClick(e) {
+  const a = e.target.closest?.('a[href^="#"]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey) return;
+  const href = a.getAttribute('href');
+  if (href.startsWith('#/')) return; // páginas (presentes, área dos noivos) continuam usando o hash
+  e.preventDefault();
+  goSection(href.slice(1));
 }
 
 /* ---------- Contagem regressiva (anos, meses, dias, horas, minutos, segundos) ---------- */
@@ -136,11 +163,17 @@ const countdown = computed(() =>
 const weddingArrived = computed(() => now.value >= wedding);
 
 /* ---------- Conteúdo ---------- */
-const mapUrl =
-  'https://www.google.com/maps/search/?api=1&query=' +
-  encodeURIComponent(
-    'Cerimonial Casa Rio, R. João Marques de Oliveira, 53, Buraquinho, Lauro de Freitas, BA',
-  );
+const mapUrl = MAP_URL;
+const calendarUrl = googleCalendarUrl();
+
+/* conteúdo editável pelo painel (história, dress code, dicas, perguntas, prazo) */
+const siteConfig = ref({});
+const deadlineText = computed(() => {
+  const d = siteConfig.value.prazoConfirmacao;
+  if (!d) return '';
+  const [y, m, day] = d.split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+});
 const pictures = [
   { src: '/art/buque.webp', caption: 'Cada pequeno detalhe', cls: 'tall' },
   { src: '/art/mesa-decorada.webp', caption: 'Feito com amor', cls: 'wide' },
@@ -162,7 +195,16 @@ const petals = Array.from({ length: 14 }, (_, i) => ({
 function closeMenu() {
   mobileMenu.value = false;
 }
+const CODE_KEY = 'convite-codigo';
 function openRSVP() {
+  // quem já usou o código neste aparelho encontra o campo preenchido
+  if (!inviteCode.value) {
+    try {
+      inviteCode.value = normalizeCode(localStorage.getItem(CODE_KEY) || '');
+    } catch {
+      /* armazenamento indisponível */
+    }
+  }
   rsvpOpen.value = true;
   closeMenu();
 }
@@ -202,6 +244,11 @@ async function submitCode() {
       return;
     }
     invite.value = found;
+    try {
+      localStorage.setItem(CODE_KEY, found.code);
+    } catch {
+      /* armazenamento indisponível */
+    }
     answers.value = { ...found.respostas };
     answeredBefore.value = Object.keys(found.respostas).length > 0;
     rsvpStep.value = 'guests';
@@ -361,6 +408,18 @@ onMounted(() => {
   window.addEventListener('pointermove', onPointer, { passive: true });
   window.addEventListener('keydown', onKey);
   window.addEventListener('hashchange', onHashChange);
+  window.addEventListener('popstate', onHashChange); // voltar/avançar do navegador entre páginas
+  document.addEventListener('click', onAnchorClick);
+  // chegou com âncora (ex.: /#cerimonia): rola até lá e limpa o endereço
+  if (location.hash && !location.hash.startsWith('#/')) {
+    const id = location.hash.slice(1);
+    history.replaceState(null, '', location.pathname + location.search);
+    nextTick(() => setTimeout(() => scrollToSection(id), introDone.value ? 0 : 400));
+  }
+  // conteúdo editável (só depois da abertura, para não disputar a rede com a ilustração)
+  const loadContent = () => getSiteConfig().then((c) => (siteConfig.value = c || {})).catch(() => {});
+  if (introDone.value) loadContent();
+  else watch(introDone, (v) => v && loadContent(), { once: true });
   onScroll();
   sectionObserver = new IntersectionObserver(
     (entries) =>
@@ -377,6 +436,10 @@ onMounted(() => {
   // link do convite (?convite=CODIGO): abre a confirmação já com o código
   const linkCode = normalizeCode(new URLSearchParams(location.search).get('convite'));
   if (linkCode.length === 6) {
+    // tira o ?convite= do endereço: o código fica só na memória (e no aparelho, ao confirmar)
+    const clean = new URL(location.href);
+    clean.searchParams.delete('convite');
+    history.replaceState(null, '', clean.pathname + clean.search + clean.hash);
     const open = () => {
       inviteCode.value = linkCode;
       rsvpOpen.value = true;
@@ -399,6 +462,8 @@ onUnmounted(() => {
   window.removeEventListener('pointermove', onPointer);
   window.removeEventListener('keydown', onKey);
   window.removeEventListener('hashchange', onHashChange);
+  window.removeEventListener('popstate', onHashChange);
+  document.removeEventListener('click', onAnchorClick);
 });
 </script>
 
@@ -551,6 +616,8 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <SiteSections part="historia" :config="siteConfig" />
+
       <!-- Cerimônia -->
       <section id="cerimonia" class="ceremony section-wrap">
         <div class="ceremony-copy">
@@ -575,13 +642,21 @@ onUnmounted(() => {
             <strong class="venue-name">Cerimônia · <i>Cerimonial Casa Rio</i></strong>
             <p class="venue-address">R. João Marques de Oliveira, 53<br />Buraquinho — Lauro de Freitas, BA</p>
           </div>
-          <div v-reveal="550" class="ceremony-actions">
+          <div v-reveal="550" class="venue-map">
+            <iframe
+              :src="MAP_EMBED"
+              title="Mapa do Cerimonial Casa Rio"
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"
+            ></iframe>
+          </div>
+          <div v-reveal="600" class="ceremony-actions">
             <a class="btn btn-outline" :href="mapUrl" target="_blank" rel="noopener noreferrer">
               Como chegar <ExternalLink :size="16" />
             </a>
-            <button class="btn btn-navy" @click="openRSVP">
-              Confirmar presença <ArrowUpRight :size="16" />
-            </button>
+            <a class="btn btn-outline" :href="calendarUrl" target="_blank" rel="noopener noreferrer">
+              Salvar na agenda <CalendarDays :size="16" />
+            </a>
           </div>
         </div>
         <div class="ceremony-art">
@@ -597,6 +672,8 @@ onUnmounted(() => {
           <p class="art-note">Cerimonial Casa Rio · Lauro de Freitas, BA</p>
         </div>
       </section>
+
+      <SiteSections part="dress" :config="siteConfig" />
 
       <!-- Citação -->
       <section class="quote-band">
@@ -636,6 +713,8 @@ onUnmounted(() => {
         <p class="gallery-note">Imagens conceituais de inspiração. Fotos reais poderão ser adicionadas depois.</p>
       </section>
 
+      <SiteSections part="dicas" :config="siteConfig" />
+
       <!-- Presentes -->
       <section id="presentes" class="gifts">
         <div class="gift-art">
@@ -654,6 +733,8 @@ onUnmounted(() => {
           </a>
         </div>
       </section>
+
+      <SiteSections part="faq" :config="siteConfig" />
 
       <!-- RSVP -->
       <section id="presenca" class="rsvp-section">
@@ -678,7 +759,7 @@ onUnmounted(() => {
       </section>
     </main>
 
-    <GiftsPage v-if="page === 'gifts'" @rsvp="openRSVP" />
+    <GiftsPage v-if="page === 'gifts'" />
     <AdminPage v-if="page === 'admin'" />
 
     <footer v-show="page !== 'admin'" class="site-footer">
@@ -699,6 +780,7 @@ onUnmounted(() => {
               <p class="eyebrow">RSVP · Etapa 1 de 2</p>
               <h2 id="rsvp-title">Confirme sua <i>presença</i></h2>
               <p class="modal-lead">Digite o código de 6 caracteres que está no seu convite.</p>
+              <p v-if="deadlineText" class="rsvp-deadline">Por favor, responda até <b>{{ deadlineText }}</b>.</p>
               <form @submit.prevent="submitCode">
                 <label for="invite-code">Código do convite</label>
                 <input
@@ -806,6 +888,20 @@ onUnmounted(() => {
                 <div v-if="declinedGuests.length">
                   <small>Não poderão ir</small>
                   <span v-for="name in declinedGuests" :key="name" class="tag no">{{ name }}</span>
+                </div>
+              </div>
+              <div v-if="confirmedGuests.length" class="rsvp-next">
+                <p>Já deixe tudo pronto:</p>
+                <div class="rsvp-next-actions">
+                  <a class="btn btn-navy" :href="calendarUrl" target="_blank" rel="noopener noreferrer">
+                    <CalendarDays :size="15" /> Google Agenda
+                  </a>
+                  <button class="btn btn-outline" type="button" @click="downloadIcs">
+                    <CalendarDays :size="15" /> iPhone / Outlook
+                  </button>
+                  <a class="btn btn-outline" :href="mapUrl" target="_blank" rel="noopener noreferrer">
+                    <MapPin :size="15" /> Como chegar
+                  </a>
                 </div>
               </div>
               <small class="modal-disclaimer">Resposta salva. Se mudar de ideia, é só usar o mesmo código.</small>

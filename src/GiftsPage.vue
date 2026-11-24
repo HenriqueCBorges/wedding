@@ -1,13 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { ArrowLeft, ArrowUpRight, X, Heart, QrCode, Sparkles, Copy, Check } from 'lucide-vue-next';
+import { ArrowLeft, ArrowUpRight, X, QrCode, Sparkles, Copy, Check } from 'lucide-vue-next';
 import { gifts, priceRanges, formatPrice } from './gifts.js';
 import { vReveal } from './reveal.js';
 import { getSiteConfig } from './api.js';
 import { buildPix, pixQrSvg, pixConfigured } from './pix.js';
 import GiftArt from './GiftArt.vue';
 
-const emit = defineEmits(['rsvp']);
 
 const range = ref('todos');
 const visibleGifts = computed(() => {
@@ -27,21 +26,6 @@ onMounted(async () => {
   }
 });
 const pixReady = computed(() => pixConfigured(config.value));
-
-/* ---------- Presente com valor livre ---------- */
-const customAmount = ref('');
-const customValue = computed(() => {
-  const n = Number(String(customAmount.value).replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
-});
-function chooseCustom() {
-  if (customValue.value < 1) return;
-  selected.value = {
-    id: 'livre',
-    title: 'Presente com carinho',
-    price: customValue.value,
-  };
-}
 
 /* ---------- QR Code e copia e cola do presente escolhido ---------- */
 const pixCode = ref('');
@@ -135,31 +119,6 @@ onUnmounted(() => {
         </article>
       </TransitionGroup>
 
-      <!-- Valor livre -->
-      <form v-reveal class="gp-note gp-custom" @submit.prevent="chooseCustom">
-        <div class="gp-custom-art"><GiftArt name="livre" /></div>
-        <div class="gp-custom-copy">
-          <h2>Prefere escolher o valor?</h2>
-          <p>Fique à vontade para presentear com qualquer valor. O mais importante é celebrar com você.</p>
-          <div class="gp-custom-row">
-            <label class="gp-amount">
-              <span>R$</span>
-              <input
-                v-model="customAmount"
-                inputmode="decimal"
-                placeholder="0,00"
-                aria-label="Valor do presente em reais"
-              />
-            </label>
-            <button class="btn btn-navy" type="submit" :disabled="customValue < 1">
-              Gerar Pix <ArrowUpRight :size="14" />
-            </button>
-          </div>
-          <button type="button" class="gp-rsvp-link" @click="emit('rsvp')">
-            <Heart :size="14" /> Ainda não confirmou presença? Confirme aqui
-          </button>
-        </div>
-      </form>
     </section>
 
     <!-- QR Code -->
