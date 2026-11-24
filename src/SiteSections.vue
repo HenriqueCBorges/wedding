@@ -4,7 +4,6 @@
 import { ref } from 'vue';
 import { MapPin, Plus, ExternalLink } from 'lucide-vue-next';
 import { vReveal } from './reveal.js';
-import GiftArt from './GiftArt.vue';
 import { MAP_URL } from './calendar.js';
 
 const props = defineProps({ part: String, deadline: String });
@@ -26,42 +25,42 @@ const looks = [
 /* ---------- Hospedagem e dicas (Vilas do Atlântico fica ao lado de Buraquinho) ---------- */
 const tips = [
   {
-    art: 'cama',
+    img: 'dica-pousada',
     kind: 'Hospedagem',
     title: 'Pousada Villas do Atlântico',
     text: 'A poucos passos da praia de Vilas, com piscinas, restaurante e café da manhã. Pertinho do Cerimonial.',
     link: maps('Pousada Villas do Atlântico, Lauro de Freitas - BA'),
   },
   {
-    art: 'cama',
+    img: 'dica-flamboyan',
     kind: 'Hospedagem',
     title: 'Villa Flamboyan',
     text: 'Em Vilas do Atlântico, a uma caminhada da praia de Buraquinho e do shopping Villas Boulevard.',
     link: maps('Villa Flamboyan, Vilas do Atlântico, Lauro de Freitas - BA'),
   },
   {
-    art: 'cama',
+    img: 'dica-hotel',
     kind: 'Hospedagem',
     title: 'Malibu Plaza Hotel',
     text: 'Outra opção no bairro, a poucos minutos de carro do local da cerimônia.',
     link: maps('Malibu Plaza Hotel, Lauro de Freitas - BA'),
   },
   {
-    art: 'beleza',
+    img: 'dica-beleza',
     kind: 'Beleza',
     title: 'Salões em Vilas do Atlântico',
     text: 'Para cabelo e maquiagem no dia, há vários salões no bairro. Reserve com antecedência: domingo é dia concorrido!',
     link: maps('salão de beleza, Vilas do Atlântico, Lauro de Freitas - BA'),
   },
   {
-    art: 'praia',
+    img: 'dica-quiosque',
     kind: 'Onde comer',
     title: 'Villas Beach',
     text: 'Bar e restaurante pé na areia, com petiscos e refeições de frente para o mar.',
     link: maps('Villas Beach, Vilas do Atlântico, Lauro de Freitas - BA'),
   },
   {
-    art: 'talheres',
+    img: 'dica-petiscos',
     kind: 'Onde comer',
     title: 'ZunZunZum Pub',
     text: 'Petiscaria com toque gourmet na Av. Praia de Itapuã, em Vilas do Atlântico.',
@@ -165,7 +164,12 @@ const open = ref(-1);
     </div>
     <ul class="ss-tips">
       <li v-for="(t, i) in tips" :key="t.title" v-reveal="(i % 3) * 110" class="ss-tip">
-        <div class="ss-tip-art"><GiftArt :name="t.art" /></div>
+        <div class="ss-tip-art">
+          <picture>
+            <source type="image/avif" :srcset="`/art/${t.img}.avif`" />
+            <img :src="`/art/${t.img}.webp`" :alt="`Ilustração: ${t.title}`" loading="lazy" width="640" height="460" />
+          </picture>
+        </div>
         <span class="ss-kind">{{ t.kind }}</span>
         <h3>{{ t.title }}</h3>
         <p>{{ t.text }}</p>
@@ -369,11 +373,21 @@ const open = ref(-1);
   box-shadow: 0 24px 48px -24px rgba(11, 31, 73, 0.35);
 }
 .ss-tip-art {
+  overflow: hidden;
   margin: -4px -6px 8px;
-  padding: 10px 12px 6px;
-  border: 1px solid rgba(29, 58, 138, 0.18);
+  border: 1px solid rgba(29, 58, 138, 0.16);
   border-radius: 14px;
   background: #fcf1e5;
+}
+.ss-tip-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 640 / 460;
+  transition: transform 1.1s var(--ease-out);
+}
+.ss-tip:hover .ss-tip-art img {
+  transform: scale(1.04);
 }
 .ss-kind {
   font-size: 10.5px;
