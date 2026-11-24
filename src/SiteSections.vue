@@ -1,14 +1,12 @@
 <script setup>
-// Seções informativas do site: dress code, hospedagem e dicas, perguntas frequentes.
+// Seções informativas do site: dress code e perguntas frequentes.
 // Conteúdo fixo, no visual das demais seções do site.
 import { ref } from 'vue';
-import { MapPin, Plus, ExternalLink } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 import { vReveal } from './reveal.js';
 import { MAP_URL } from './calendar.js';
 
 const props = defineProps({ part: String, deadline: String });
-
-const maps = (q) => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 
 /* ---------- Dress code ---------- */
 const avoid = [
@@ -20,52 +18,6 @@ const looks = [
   { img: 'dress-1', caption: 'Azul-marinho & verde-esmeralda' },
   { img: 'dress-2', caption: 'Grafite & bordô' },
   { img: 'dress-3', caption: 'Azul-petróleo & índigo' },
-];
-
-/* ---------- Hospedagem e dicas (Vilas do Atlântico fica ao lado de Buraquinho) ---------- */
-const tips = [
-  {
-    img: 'dica-pousada',
-    kind: 'Hospedagem',
-    title: 'Pousada Villas do Atlântico',
-    text: 'A poucos passos da praia de Vilas, com piscinas, restaurante e café da manhã. Pertinho do Cerimonial.',
-    link: maps('Pousada Villas do Atlântico, Lauro de Freitas - BA'),
-  },
-  {
-    img: 'dica-flamboyan',
-    kind: 'Hospedagem',
-    title: 'Villa Flamboyan',
-    text: 'Em Vilas do Atlântico, a uma caminhada da praia de Buraquinho e do shopping Villas Boulevard.',
-    link: maps('Villa Flamboyan, Vilas do Atlântico, Lauro de Freitas - BA'),
-  },
-  {
-    img: 'dica-hotel',
-    kind: 'Hospedagem',
-    title: 'Malibu Plaza Hotel',
-    text: 'Outra opção no bairro, a poucos minutos de carro do local da cerimônia.',
-    link: maps('Malibu Plaza Hotel, Lauro de Freitas - BA'),
-  },
-  {
-    img: 'dica-beleza',
-    kind: 'Beleza',
-    title: 'Salões em Vilas do Atlântico',
-    text: 'Para cabelo e maquiagem no dia, há vários salões no bairro. Reserve com antecedência: domingo é dia concorrido!',
-    link: maps('salão de beleza, Vilas do Atlântico, Lauro de Freitas - BA'),
-  },
-  {
-    img: 'dica-quiosque',
-    kind: 'Onde comer',
-    title: 'Villas Beach',
-    text: 'Bar e restaurante pé na areia, com petiscos e refeições de frente para o mar.',
-    link: maps('Villas Beach, Vilas do Atlântico, Lauro de Freitas - BA'),
-  },
-  {
-    img: 'dica-petiscos',
-    kind: 'Onde comer',
-    title: 'ZunZunZum Pub',
-    text: 'Petiscaria com toque gourmet na Av. Praia de Itapuã, em Vilas do Atlântico.',
-    link: maps('ZunZunZum Pub, Av. Praia de Itapuã, 1734, Lauro de Freitas - BA'),
-  },
 ];
 
 /* ---------- Perguntas frequentes ---------- */
@@ -101,11 +53,6 @@ const faq = [
     q: 'Como funciona a lista de presentes?',
     a: 'Cada presente da lista vira um Pix com o valor certo — é só ler o QR Code ou copiar o código. Nada é obrigatório: o melhor presente é ter você lá.',
     link: { href: '#/presentes', label: 'Ver lista de presentes', internal: true },
-  },
-  {
-    q: 'Onde posso me hospedar?',
-    a: 'Separamos algumas opções em Vilas do Atlântico, bairro vizinho ao Cerimonial, na seção "Hospedagem e dicas".',
-    link: { href: '#dicas', label: 'Ver dicas', internal: true },
   },
   {
     q: 'Perdi o código do convite. E agora?',
@@ -151,32 +98,6 @@ const open = ref(-1);
         <b>Todas as outras cores são muito bem-vindas.</b>
       </p>
     </div>
-  </section>
-
-  <!-- ============ Hospedagem e dicas ============ -->
-  <section v-else-if="part === 'dicas'" id="dicas" class="ss ss-dicas section-wrap">
-    <div class="ss-head">
-      <p v-reveal class="eyebrow">Para quem vem de longe</p>
-      <h2 v-reveal="100">Hospedagem e <i>dicas</i></h2>
-      <p v-reveal="200" class="ss-sub">
-        Vilas do Atlântico fica colado em Buraquinho: dá para ficar pertinho do Cerimonial e ainda aproveitar a praia.
-      </p>
-    </div>
-    <ul class="ss-tips">
-      <li v-for="(t, i) in tips" :key="t.title" v-reveal="(i % 3) * 110" class="ss-tip">
-        <div class="ss-tip-art">
-          <picture>
-            <source type="image/avif" :srcset="`/art/${t.img}.avif`" />
-            <img :src="`/art/${t.img}.webp`" :alt="`Ilustração: ${t.title}`" loading="lazy" width="640" height="460" />
-          </picture>
-        </div>
-        <span class="ss-kind">{{ t.kind }}</span>
-        <h3>{{ t.title }}</h3>
-        <p>{{ t.text }}</p>
-        <a :href="t.link" target="_blank" rel="noopener noreferrer"><MapPin :size="14" /> Ver no mapa <ExternalLink :size="12" /></a>
-      </li>
-    </ul>
-    <p v-reveal class="ss-disclaimer">Sugestões para facilitar a sua viagem — não temos parceria com nenhum desses lugares.</p>
   </section>
 
   <!-- ============ Perguntas frequentes ============ -->
@@ -225,12 +146,6 @@ const open = ref(-1);
 .ss-head h2 {
   margin: 0;
 }
-.ss-sub {
-  max-width: 560px;
-  margin: 8px 0 0;
-  color: var(--ink-soft);
-}
-
 /* ---------- Dress code ---------- */
 .ss-looks {
   display: grid;
@@ -347,89 +262,6 @@ const open = ref(-1);
   color: var(--navy);
 }
 
-/* ---------- Dicas ---------- */
-.ss-tips {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.ss-tip {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  padding: 18px 20px 22px;
-  border: 1px solid rgba(29, 58, 138, 0.14);
-  border-radius: 22px;
-  background: #fffaf3;
-  transition:
-    transform 0.45s var(--ease-out),
-    box-shadow 0.45s;
-}
-.ss-tip:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 24px 48px -24px rgba(11, 31, 73, 0.35);
-}
-.ss-tip-art {
-  overflow: hidden;
-  margin: -4px -6px 8px;
-  border: 1px solid rgba(29, 58, 138, 0.16);
-  border-radius: 14px;
-  background: #fcf1e5;
-}
-.ss-tip-art img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 640 / 460;
-  transition: transform 1.1s var(--ease-out);
-}
-.ss-tip:hover .ss-tip-art img {
-  transform: scale(1.04);
-}
-.ss-kind {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--gold-ink);
-}
-.ss-tip h3 {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 1.5rem;
-  font-weight: 400;
-  line-height: 1.15;
-}
-.ss-tip p {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 14px;
-  line-height: 1.65;
-}
-.ss-tip a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--navy);
-}
-.ss-tip a:hover {
-  color: var(--gold-ink);
-}
-.ss-disclaimer {
-  margin: 22px 0 0;
-  text-align: center;
-  font-size: 12px;
-  color: #6b7280;
-}
-
 /* ---------- Perguntas frequentes ---------- */
 .ss-faq {
   max-width: 880px;
@@ -510,15 +342,7 @@ const open = ref(-1);
   color: var(--gold-ink);
 }
 
-@media (max-width: 960px) {
-  .ss-tips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 @media (max-width: 620px) {
-  .ss-tips {
-    grid-template-columns: 1fr;
-  }
   /* no celular, os looks deslizam para o lado */
   .ss-looks {
     display: flex;

@@ -705,8 +705,6 @@ onUnmounted(() => {
         <p class="gallery-note">Imagens conceituais de inspiração. Fotos reais poderão ser adicionadas depois.</p>
       </section>
 
-      <SiteSections part="dicas" />
-
       <!-- Presentes -->
       <section id="presentes" class="gifts">
         <div class="gift-art">
