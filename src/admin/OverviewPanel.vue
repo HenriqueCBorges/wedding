@@ -1,9 +1,11 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue';
-import { Users, CheckCircle2, Clock3, XCircle, Armchair, ArrowUpRight, CalendarHeart } from 'lucide-vue-next';
-import { TAGS, SIDES, TABLES_PER_SIDE, SEATS_PER_TABLE, TOTAL_SEATS, STATUS } from './seating.js';
+import { Users, CheckCircle2, Clock3, XCircle, Armchair, ArrowUpRight, CalendarHeart, HandCoins, BellRing } from 'lucide-vue-next';
+import { TAGS, SIDES, STATUS, capacityOf } from './seating.js';
+import { formatPrice } from '../gifts.js';
 
-const props = defineProps({ guests: Array, invites: Array });
+const props = defineProps({ guests: Array, invites: Array, tables: Object, gifts: Array });
+const totalSeats = computed(() => capacityOf(props.tables));
 const go = inject('go');
 
 const total = computed(() => props.guests.length);
@@ -36,7 +38,7 @@ const kpis = computed(() => [
   { key: 'sim', label: 'Confirmados', icon: CheckCircle2, tone: 'ok', sub: pct(sim.value) },
   { key: 'pend', label: 'A confirmar', icon: Clock3, tone: 'wait', sub: pct(pend.value) },
   { key: 'nao', label: 'Não vão', icon: XCircle, tone: 'no', sub: pct(nao.value) },
-  { key: 'seated', label: 'Com lugar', icon: Armchair, tone: 'gold', sub: `de ${TOTAL_SEATS} cadeiras` },
+  { key: 'seated', label: 'Com lugar', icon: Armchair, tone: 'gold', sub: `de ${totalSeats.value} cadeiras` },
 ]);
 function pct(n) {
   return total.value ? `${Math.round((n / total.value) * 100)}% do total` : '—';
@@ -73,7 +75,7 @@ const tagStats = computed(() =>
 /* ocupação por lado */
 const sides = computed(() =>
   SIDES.map((lado) => {
-    const cap = TABLES_PER_SIDE * SEATS_PER_TABLE;
+    const cap = capacityOf(props.tables, lado);
     const n = props.guests.filter((g) => g.assento?.lado === lado).length;
     return { lado, n, cap, pct: Math.round((n / cap) * 100) };
   }),
@@ -100,6 +102,37 @@ function ago(d) {
   if (s < 86400) return `há ${Math.round(s / 3600)} h`;
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
+
+/* respostas por semana (últimas 10 semanas, pela data da última resposta de cada convite) */
+const weeks = computed(() => {
+  const W = 7 * 86400000;
+  const now = Date.now();
+  const buckets = Array.from({ length: 10 }, (_, i) => ({ start: now - (10 - i) * W, n: 0 }));
+  for (const inv of props.invites) {
+    if (!inv.respondidoEm) continue;
+    const idx = 9 - Math.floor((now - inv.respondidoEm) / W);
+    if (idx >= 0 && idx < 10) buckets[idx].n += inv.convidados.length;
+  }
+  const max = Math.max(1, ...buckets.map((b) => b.n));
+  return buckets.map((b, i) => ({
+    ...b,
+    h: (b.n / max) * 100,
+    label: i === 9 ? 'esta' : new Date(b.start + W).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+  }));
+});
+
+/* convidados da noiva × do noivo */
+const sidesSplit = computed(() => {
+  const c = { noiva: 0, noivo: 0, ambos: 0, sem: 0 };
+  for (const g of props.guests) c[g.ladoConvidado || 'sem']++;
+  const t = props.guests.length || 1;
+  return { ...c, pNoiva: (c.noiva / t) * 100, pNoivo: (c.noivo / t) * 100, pAmbos: (c.ambos / t) * 100 };
+});
+
+/* presentes e pendências */
+const giftsTotal = computed(() => (props.gifts || []).reduce((n, g) => n + (Number(g.valor) || 0), 0));
+const toThank = computed(() => (props.gifts || []).filter((g) => !g.agradecido).length);
+const noAnswer = computed(() => props.invites.filter((i) => !i.respondidoEm).length);
 
 /* dias até o casamento (horário de Brasília) */
 const days = computed(() => Math.max(0, Math.ceil((Date.UTC(2027, 7, 22, 18, 30) - Date.now()) / 86400000)));
@@ -198,6 +231,46 @@ const days = computed(() => Math.max(0, Math.ceil((Date.UTC(2027, 7, 22, 18, 30)
           </li>
         </ul>
         <p class="muted ov-hint">Marque as tags de cada pessoa em <b>Convidados</b>.</p>
+      </article>
+
+      <!-- Evolução das respostas -->
+      <article class="card ov-box rise" style="--i: 9">
+        <header><h2>Respostas por semana</h2></header>
+        <div class="ov-weeks" role="img" aria-label="Pessoas que responderam em cada uma das últimas 10 semanas">
+          <div v-for="(w, i) in weeks" :key="i" class="ov-week" :title="`${w.n} pessoa(s)`">
+            <span class="ov-week-n">{{ w.n || '' }}</span>
+            <i :style="{ height: drawn ? Math.max(w.h, w.n ? 6 : 2) + '%' : '0%', transitionDelay: i * 50 + 'ms' }"></i>
+            <small>{{ w.label }}</small>
+          </div>
+        </div>
+      </article>
+
+      <!-- Noiva × noivo, presentes e lembretes -->
+      <article class="card ov-box rise" style="--i: 10">
+        <header><h2>Resumo</h2></header>
+        <div class="ov-split">
+          <div class="ov-split-bar">
+            <i class="noiva" :style="{ width: drawn ? sidesSplit.pNoiva + '%' : '0%' }"></i>
+            <i class="ambos" :style="{ width: drawn ? sidesSplit.pAmbos + '%' : '0%' }"></i>
+            <i class="noivo" :style="{ width: drawn ? sidesSplit.pNoivo + '%' : '0%' }"></i>
+          </div>
+          <ul>
+            <li><b class="noiva"></b> Noiva <strong>{{ sidesSplit.noiva }}</strong></li>
+            <li><b class="ambos"></b> Ambos <strong>{{ sidesSplit.ambos }}</strong></li>
+            <li><b class="noivo"></b> Noivo <strong>{{ sidesSplit.noivo }}</strong></li>
+            <li v-if="sidesSplit.sem"><b></b> Sem definição <strong>{{ sidesSplit.sem }}</strong></li>
+          </ul>
+        </div>
+        <div class="ov-mini">
+          <button type="button" @click="go('presentes')">
+            <HandCoins :size="18" />
+            <span><strong class="serif">{{ formatPrice(giftsTotal) }}</strong><small>em presentes · {{ toThank }} a agradecer</small></span>
+          </button>
+          <button type="button" @click="go('convidados')">
+            <BellRing :size="18" />
+            <span><strong class="serif">{{ noAnswer }}</strong><small>convite(s) sem resposta — lembrar pelo WhatsApp</small></span>
+          </button>
+        </div>
       </article>
 
       <!-- Recentes -->
@@ -524,6 +597,117 @@ const days = computed(() => Math.max(0, Math.ceil((Date.UTC(2027, 7, 22, 18, 30)
 }
 .ov-recent-dot.nao {
   background: var(--no);
+}
+.ov-weeks {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  align-items: end;
+  gap: 6px;
+  height: 180px;
+}
+.ov-week {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: end;
+  justify-items: center;
+  height: 100%;
+  gap: 4px;
+}
+.ov-week i {
+  width: 100%;
+  max-width: 28px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #c4cff5, #8fa3e2);
+  box-shadow: 0 0 14px rgba(165, 182, 236, 0.35);
+  transition: height 1s var(--ease);
+  align-self: end;
+}
+.ov-week-n {
+  font-size: 10.5px;
+  color: var(--soft);
+}
+.ov-week small {
+  font-size: 9.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ov-split-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+.ov-split-bar i {
+  height: 100%;
+  transition: width 1.2s var(--ease);
+}
+.ov-split .noiva {
+  background: #e9a8c4;
+}
+.ov-split .noivo {
+  background: #8fa3e2;
+}
+.ov-split .ambos {
+  background: var(--gold);
+}
+.ov-split ul {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--soft);
+}
+.ov-split li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ov-split li b {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.ov-split li strong {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--text);
+}
+.ov-mini {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.ov-mini button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--gold);
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.ov-mini button:hover {
+  border-color: var(--line-2);
+  background: rgba(255, 255, 255, 0.04);
+}
+.ov-mini strong {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: var(--text);
+}
+.ov-mini small {
+  color: var(--muted);
+  font-size: 11.5px;
 }
 @media (max-width: 1180px) {
   .ov-kpis {

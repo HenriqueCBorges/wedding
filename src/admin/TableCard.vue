@@ -1,18 +1,20 @@
 <script setup>
-// Uma mesa redonda com 7 cadeiras ao redor e a lista numerada abaixo.
+// Uma mesa redonda com as cadeiras ao redor (2 a 12) e a lista numerada abaixo.
 // Cadeira cheia = confirmado · tracejada = a confirmar · vermelha = não vai · número = livre.
 // Ponto laranja = criança · anel dourado = padrinho/madrinha · anel lilás = pais · selo verde = placa.
 import { computed, ref } from 'vue';
+import { Settings2 } from 'lucide-vue-next';
 import { chairPosition, initials, tableSummary, STATUS } from './seating.js';
 
 const props = defineProps({
   lado: String,
   mesa: Number,
-  seats: Array, // 7 posições: convidado | null
+  nome: String, // nome opcional da mesa
+  seats: Array, // uma posição por cadeira: convidado | null
   picking: Object, // convidado sendo posicionado (modo "escolha uma cadeira")
   index: Number,
 });
-const emit = defineEmits(['chair', 'drop', 'drag']);
+const emit = defineEmits(['chair', 'drop', 'drag', 'edit']);
 
 const occupied = computed(() => props.seats.filter(Boolean));
 const summary = computed(() => tableSummary(occupied.value));
@@ -34,10 +36,13 @@ const tip = (g, i) => (g ? `${g.nome} · ${STATUS[g.status].label}` : `Cadeira $
 
 <template>
   <article :class="['card tc rise', { full }]" :style="{ '--i': index }">
+    <button class="tc-edit" type="button" :aria-label="`Configurar mesa ${mesa}`" title="Nome e cadeiras" @click="emit('edit')">
+      <Settings2 :size="14" />
+    </button>
     <div class="tc-stage">
       <div class="tc-table">
-        <strong class="serif">Mesa {{ mesa }}</strong>
-        <span>{{ occupied.length }}/{{ seats.length }}</span>
+        <strong class="serif" :class="{ named: !!nome }">{{ nome || `Mesa ${mesa}` }}</strong>
+        <span>{{ nome ? `Mesa ${mesa} · ` : '' }}{{ occupied.length }}/{{ seats.length }}</span>
       </div>
       <button
         v-for="(g, i) in seats"
@@ -54,7 +59,7 @@ const tip = (g, i) => (g ? `${g.nome} · ${STATUS[g.status].label}` : `Cadeira $
             pais: g?.tags.includes('pais'),
           },
         ]"
-        :style="{ ...chairPosition(i), '--d': `${index * 40 + i * 35}ms` }"
+        :style="{ ...chairPosition(i, seats.length), '--d': `${index * 40 + i * 35}ms` }"
         :title="tip(g, i)"
         :aria-label="tip(g, i)"
         :draggable="!!g"
@@ -97,6 +102,37 @@ const tip = (g, i) => (g ? `${g.nome} · ${STATUS[g.status].label}` : `Cadeira $
 }
 .tc:hover {
   border-color: var(--line-2);
+}
+.tc-edit {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.55;
+  transition:
+    opacity 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.tc:hover .tc-edit,
+.tc-edit:focus-visible {
+  opacity: 1;
+  border-color: var(--line-2);
+  color: var(--text);
+}
+.tc-table strong.named {
+  max-width: 90%;
+  margin: 0 auto;
+  font-size: clamp(0.85rem, 1.5vw, 1.05rem);
+  line-height: 1.1;
 }
 .tc.full {
   border-color: rgba(165, 182, 236, 0.22);

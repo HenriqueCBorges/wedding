@@ -2,14 +2,14 @@
 // Painel dos noivos (#/admin): login, navegação e dados em tempo real.
 // Cada seção fica em src/admin/*.vue.
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { LayoutDashboard, Users, Armchair, Upload, QrCode, LogOut, ExternalLink, Check, AlertCircle } from 'lucide-vue-next';
-import { login, logout, watchUser, emailToUser, watchInvites, getSiteConfig } from './api.js';
+import { LayoutDashboard, Users, Armchair, Gift, LogOut, ExternalLink, Check, AlertCircle } from 'lucide-vue-next';
+import { login, logout, watchUser, emailToUser, watchInvites, getSiteConfig, watchTables, watchGifts } from './api.js';
 import { flattenGuests } from './admin/seating.js';
 import OverviewPanel from './admin/OverviewPanel.vue';
 import GuestsPanel from './admin/GuestsPanel.vue';
 import SeatingPanel from './admin/SeatingPanel.vue';
 import ImportPanel from './admin/ImportPanel.vue';
-import PixPanel from './admin/PixPanel.vue';
+import GiftsReceivedPanel from './admin/GiftsReceivedPanel.vue';
 import './admin/admin.css';
 
 /* ---------- Sessão ---------- */
@@ -19,6 +19,8 @@ const loginError = ref('');
 const loginBusy = ref(false);
 let stopUser = null;
 let stopInvites = null;
+let stopTables = null;
+let stopGifts = null;
 
 async function doLogin() {
   loginBusy.value = true;
@@ -41,7 +43,9 @@ async function doLogin() {
 }
 async function doLogout() {
   stopInvites?.();
-  stopInvites = null;
+  stopTables?.();
+  stopGifts?.();
+  stopInvites = stopTables = stopGifts = null;
   await logout();
 }
 
@@ -50,6 +54,8 @@ const invites = ref([]);
 const loaded = ref(false);
 const loadError = ref('');
 const config = ref({});
+const tables = ref({}); // nomes e cadeiras das mesas
+const gifts = ref([]); // presentes recebidos
 const guests = computed(() => flattenGuests(invites.value));
 
 function subscribe() {
@@ -68,6 +74,13 @@ function subscribe() {
           : 'Não foi possível carregar os convidados.';
     },
   ).then((stop) => (stopInvites = stop));
+  stopTables?.();
+  watchTables((t) => (tables.value = t || {})).then((stop) => (stopTables = stop));
+  stopGifts?.();
+  watchGifts(
+    (list) => (gifts.value = list),
+    () => (gifts.value = []),
+  ).then((stop) => (stopGifts = stop));
 }
 async function reloadConfig() {
   try {
@@ -92,6 +105,8 @@ onMounted(async () => {
 onUnmounted(() => {
   stopUser?.();
   stopInvites?.();
+  stopTables?.();
+  stopGifts?.();
 });
 
 /* ---------- Avisos (toasts) ---------- */
@@ -109,9 +124,12 @@ const sections = [
   { id: 'geral', label: 'Visão geral', icon: LayoutDashboard },
   { id: 'convidados', label: 'Convidados', icon: Users },
   { id: 'mesas', label: 'Mesas', icon: Armchair },
-  { id: 'importar', label: 'Importar', icon: Upload },
-  { id: 'pix', label: 'Pix', icon: QrCode },
+  { id: 'presentes', label: 'Presentes', icon: Gift },
 ];
+// seções acessadas por botões dentro de outras (não aparecem no menu)
+const titles = { importar: 'Importar' };
+const sectionTitle = computed(() => sections.find((s) => s.id === section.value)?.label || titles[section.value] || '');
+const navActive = (id) => section.value === id || (id === 'convidados' && section.value === 'importar');
 const section = ref('geral');
 function go(id) {
   section.value = id;
@@ -164,8 +182,8 @@ provide('go', go);
           <button
             v-for="s in sections"
             :key="s.id"
-            :class="{ on: section === s.id }"
-            :aria-current="section === s.id ? 'page' : undefined"
+            :class="{ on: navActive(s.id) }"
+            :aria-current="navActive(s.id) ? 'page' : undefined"
             @click="go(s.id)"
           >
             <component :is="s.icon" :size="18" stroke-width="1.7" />
@@ -190,25 +208,30 @@ provide('go', go);
       <!-- topo no celular -->
       <header class="adm-mtop">
         <img src="/logo-light.png" alt="" />
-        <strong class="serif">{{ sections.find((s) => s.id === section).label }}</strong>
+        <strong class="serif">{{ sectionTitle }}</strong>
         <button class="b icon" type="button" aria-label="Sair" @click="doLogout"><LogOut :size="16" /></button>
       </header>
 
       <main class="adm-content">
         <p v-if="loadError" class="adm-alert"><AlertCircle :size="16" /> {{ loadError }}</p>
-        <div v-if="!loaded" class="adm-center small"><span class="adm-spinner"></span></div>
+        <!-- esqueleto enquanto os dados chegam -->
+        <div v-if="!loaded" class="adm-skeleton" aria-label="Carregando">
+          <div class="sk sk-title"></div>
+          <div class="sk-row"><div v-for="n in 5" :key="n" class="sk sk-card"></div></div>
+          <div class="sk-row two"><div class="sk sk-box"></div><div class="sk sk-box"></div></div>
+        </div>
         <Transition v-else name="adm-panel" mode="out-in">
-          <OverviewPanel v-if="section === 'geral'" key="geral" :guests="guests" :invites="invites" />
-          <GuestsPanel v-else-if="section === 'convidados'" key="convidados" :invites="invites" :guests="guests" />
-          <SeatingPanel v-else-if="section === 'mesas'" key="mesas" :invites="invites" :guests="guests" />
+          <OverviewPanel v-if="section === 'geral'" key="geral" :guests="guests" :invites="invites" :tables="tables" :gifts="gifts" />
+          <GuestsPanel v-else-if="section === 'convidados'" key="convidados" :invites="invites" :guests="guests" :tables="tables" />
+          <SeatingPanel v-else-if="section === 'mesas'" key="mesas" :invites="invites" :guests="guests" :tables="tables" />
           <ImportPanel v-else-if="section === 'importar'" key="importar" :invites="invites" />
-          <PixPanel v-else key="pix" :config="config" @saved="reloadConfig" />
+          <GiftsReceivedPanel v-else key="presentes" :gifts="gifts" :config="config" @config-saved="reloadConfig" />
         </Transition>
       </main>
 
       <!-- navegação inferior no celular -->
       <nav class="adm-tabbar" aria-label="Seções do painel">
-        <button v-for="s in sections" :key="s.id" :class="{ on: section === s.id }" @click="go(s.id)">
+        <button v-for="s in sections" :key="s.id" :class="{ on: navActive(s.id) }" @click="go(s.id)">
           <component :is="s.icon" :size="20" stroke-width="1.7" />
           <span>{{ s.label.split(' ')[0] }}</span>
         </button>
@@ -425,6 +448,52 @@ provide('go', go);
   display: none;
 }
 
+/* ---------- Esqueleto de carregamento ---------- */
+.adm-skeleton {
+  display: grid;
+  gap: 16px;
+}
+.sk {
+  border-radius: 16px;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 70%);
+  background-size: 300% 100%;
+  animation: sk-shine 1.4s ease-in-out infinite;
+}
+.sk-title {
+  width: 220px;
+  height: 42px;
+}
+.sk-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+.sk-row.two {
+  grid-template-columns: 1fr 1fr;
+}
+.sk-card {
+  height: 120px;
+}
+.sk-box {
+  height: 280px;
+}
+@keyframes sk-shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@media (max-width: 760px) {
+  .sk-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sk-row.two {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Avisos ---------- */
 .adm-toasts {
   position: fixed;
@@ -503,7 +572,7 @@ provide('go', go);
     bottom: calc(10px + env(safe-area-inset-bottom));
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     padding: 6px;
     border: 1px solid var(--line-2);
     border-radius: 20px;

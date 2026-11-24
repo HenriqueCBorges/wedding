@@ -4,7 +4,10 @@
 //   convites/{codigo}  { familia: string | null, convidados: [{ id, nome }],
 //                        respostas: { [convidadoId]: 'sim' | 'nao' }, respondidoEm,
 //                        criadoEm, atualizadoEm }
-//   config/site        { pixChave, pixNome, pixCidade }
+//   config/site        { pixChave, pixNome, pixCidade }              (leitura pública)
+//   admin/mesas        { A: [{ nome, cadeiras }], B: [...] }        (só noivos)
+//   presentes/{id}     { nome, presente, valor, data, agradecido, obs } (só noivos)
+//   convites também têm: telefone (WhatsApp) e lado ('noiva' | 'noivo' | 'ambos')
 //
 // Convidado sem família = convite com uma pessoa e `familia: null`.
 import { db, dbLite, auth } from './firebase.js';
@@ -95,6 +98,8 @@ export async function watchInvites(callback, onError) {
             respostas: x.respostas || {},
             respondidoEm: x.respondidoEm?.toDate?.() || null,
             criadoEm: x.criadoEm?.toDate?.() || null,
+            telefone: x.telefone || '',
+            lado: x.lado || '',
           };
         }),
       ),
@@ -107,7 +112,7 @@ export async function inviteExists(code) {
   return (await fs.getDoc(fs.doc(d, 'convites', code))).exists();
 }
 
-export async function saveInvite({ code, familia, convidados, respostas }, { isNew }) {
+export async function saveInvite({ code, familia, convidados, respostas, telefone, lado }, { isNew }) {
   const { db: d, fs } = await db();
   const ref = fs.doc(d, 'convites', code);
   const ids = new Set(convidados.map((c) => c.id));
@@ -117,6 +122,8 @@ export async function saveInvite({ code, familia, convidados, respostas }, { isN
     familia: familia?.trim() || null,
     convidados: convidados.map(cleanGuest),
     respostas: kept,
+    telefone: String(telefone || '').replace(/[^\d+]/g, ''),
+    lado: ['noiva', 'noivo', 'ambos'].includes(lado) ? lado : '',
     atualizadoEm: fs.serverTimestamp(),
   };
   if (isNew) await fs.setDoc(ref, { ...data, criadoEm: fs.serverTimestamp() });
@@ -156,4 +163,61 @@ export async function deleteInvite(code) {
 export async function saveSiteConfig(config) {
   const { db: d, fs } = await db();
   await fs.setDoc(fs.doc(d, 'config', 'site'), config, { merge: true });
+}
+
+/* ---------- Ações em massa: atualiza só alguns campos de vários convites ---------- */
+export async function updateInvitesBatch(updates) {
+  const { db: d, fs } = await db();
+  const batch = fs.writeBatch(d);
+  for (const [code, fields] of updates) batch.update(fs.doc(d, 'convites', code), { ...fields, atualizadoEm: fs.serverTimestamp() });
+  await batch.commit();
+}
+
+/* ---------- Configuração das mesas (nomes e cadeiras) ---------- */
+export async function watchTables(callback) {
+  const { db: d, fs } = await db();
+  return fs.onSnapshot(fs.doc(d, 'admin', 'mesas'), (snap) => callback(snap.exists() ? snap.data() : {}), () => callback({}));
+}
+export async function saveTables(config) {
+  const { db: d, fs } = await db();
+  await fs.setDoc(fs.doc(d, 'admin', 'mesas'), config);
+}
+
+/* ---------- Presentes recebidos (registrados à mão, pois o Pix não avisa) ---------- */
+export async function watchGifts(callback, onError) {
+  const { db: d, fs } = await db();
+  return fs.onSnapshot(
+    fs.collection(d, 'presentes'),
+    (snap) =>
+      callback(
+        snap.docs
+          .map((doc) => {
+            const x = doc.data();
+            return { id: doc.id, ...x, data: x.data?.toDate?.() || null };
+          })
+          .sort((a, b) => (b.data || 0) - (a.data || 0)),
+      ),
+    onError,
+  );
+}
+export async function saveGift(gift) {
+  const { db: d, fs } = await db();
+  const data = {
+    nome: String(gift.nome || '').trim(),
+    presente: String(gift.presente || '').trim(),
+    valor: Math.max(0, Math.round(Number(gift.valor || 0) * 100) / 100),
+    data: gift.data instanceof Date ? fs.Timestamp.fromDate(gift.data) : fs.serverTimestamp(),
+    agradecido: !!gift.agradecido,
+    obs: String(gift.obs || '').trim(),
+  };
+  if (gift.id) await fs.setDoc(fs.doc(d, 'presentes', gift.id), data);
+  else await fs.addDoc(fs.collection(d, 'presentes'), data);
+}
+export async function setGiftThanked(id, agradecido) {
+  const { db: d, fs } = await db();
+  await fs.updateDoc(fs.doc(d, 'presentes', id), { agradecido });
+}
+export async function deleteGift(id) {
+  const { db: d, fs } = await db();
+  await fs.deleteDoc(fs.doc(d, 'presentes', id));
 }

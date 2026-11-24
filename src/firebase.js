@@ -38,7 +38,16 @@ export function dbLite() {
 let dbPromise;
 export function db() {
   dbPromise ??= Promise.all([app(), import('firebase/firestore')]).then(([a, fs]) => {
-    const db = fs.getFirestore(a);
+    // cache local no navegador: o painel abre instantâneo nas próximas visitas e
+    // continua mostrando os dados se a internet oscilar
+    let db;
+    try {
+      db = fs.initializeFirestore(a, {
+        localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }),
+      });
+    } catch {
+      db = fs.getFirestore(a);
+    }
     if (useEmulator) fs.connectFirestoreEmulator(db, '127.0.0.1', 8080);
     return { db, fs };
   });

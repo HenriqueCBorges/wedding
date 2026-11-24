@@ -4,7 +4,7 @@ import { QrCode, ShieldCheck, CheckCircle2, AlertCircle, Copy } from 'lucide-vue
 import { saveSiteConfig } from '../api.js';
 import { buildPix, pixQrSvg, pixConfigured, pixKeyType, normalizePixKey, isPixPayload, parsePixPayload } from '../pix.js';
 
-const props = defineProps({ config: Object });
+const props = defineProps({ config: Object, embedded: Boolean });
 const emit = defineEmits(['saved']);
 const toast = inject('toast');
 
@@ -86,7 +86,7 @@ async function copyCode() {
 
 <template>
   <section>
-    <div class="section-head">
+    <div v-if="!embedded" class="section-head">
       <div>
         <p class="eyebrow">Presentes</p>
         <h1>Pix</h1>

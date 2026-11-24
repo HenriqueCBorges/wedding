@@ -1,24 +1,29 @@
 <script setup>
-// Mesas: Lado A e Lado B, 10 mesas de 7 cadeiras cada.
+// Mesas: Lado A e Lado B, 10 mesas cada, com nome e número de cadeiras configuráveis.
 // - Computador: arraste da lista "Sem lugar" para uma cadeira (ou de uma cadeira para outra — troca).
 // - Celular: toque na pessoa e depois na cadeira; ou toque numa cadeira livre para escolher quem senta.
 import { ref, computed, inject } from 'vue';
-import { LayoutGrid, List, Search, X, UserMinus, Move, Armchair, Download, Users, ChevronUp } from 'lucide-vue-next';
-import { saveGuestsBatch } from '../api.js';
+import { LayoutGrid, List, Search, X, UserMinus, Move, Armchair, Download, Users, ChevronUp, Wand2, Printer, Minus, Plus } from 'lucide-vue-next';
+import { saveGuestsBatch, saveTables } from '../api.js';
 import TableCard from './TableCard.vue';
 import {
   SIDES,
-  TABLES_PER_SIDE,
-  SEATS_PER_TABLE,
+  MIN_SEATS,
+  MAX_SEATS,
   STATUS,
   TAGS,
   tagById,
   seatKey,
   seatLabel,
   strip,
+  tablesFor,
+  capacityOf,
+  tableTitle,
+  suggestSeating,
 } from './seating.js';
+import { printSeatingMap, printPlates } from './print.js';
 
-const props = defineProps({ invites: Array, guests: Array });
+const props = defineProps({ invites: Array, guests: Array, tables: Object });
 const toast = inject('toast');
 
 const lado = ref('A');
@@ -31,15 +36,13 @@ const seatMap = computed(() => {
   return m;
 });
 const tables = computed(() =>
-  Array.from({ length: TABLES_PER_SIDE }, (_, t) => ({
-    mesa: t + 1,
-    seats: Array.from({ length: SEATS_PER_TABLE }, (_, c) =>
-      seatMap.value.get(seatKey({ lado: lado.value, mesa: t + 1, cadeira: c + 1 })) || null,
-    ),
+  tablesFor(props.tables, lado.value).map((t) => ({
+    ...t,
+    seats: Array.from({ length: t.cadeiras }, (_, c) => seatMap.value.get(seatKey({ lado: lado.value, mesa: t.mesa, cadeira: c + 1 })) || null),
   })),
 );
 const sideCount = (l) => props.guests.filter((g) => g.assento?.lado === l).length;
-const capacity = TABLES_PER_SIDE * SEATS_PER_TABLE;
+const capacity = computed(() => capacityOf(props.tables, lado.value));
 
 /* ---------- Sem lugar ---------- */
 const search = ref('');
@@ -153,19 +156,78 @@ function chooseFor(g) {
   place(g, seat);
 }
 
+/* ---------- Configurar mesa (nome e cadeiras) — fecha só pelo X ---------- */
+const tableEditor = ref(null); // { lado, mesa, nome, cadeiras }
+const tableError = ref('');
+const tableBusy = ref(false);
+function editTable(t) {
+  tableEditor.value = { lado: t.lado, mesa: t.mesa, nome: t.nome, cadeiras: t.cadeiras };
+  tableError.value = '';
+}
+function stepSeats(d) {
+  const e = tableEditor.value;
+  e.cadeiras = Math.min(MAX_SEATS, Math.max(MIN_SEATS, e.cadeiras + d));
+}
+async function saveTable() {
+  const e = tableEditor.value;
+  const beyond = props.guests.filter((g) => g.assento?.lado === e.lado && g.assento.mesa === e.mesa && g.assento.cadeira > e.cadeiras);
+  if (beyond.length) return (tableError.value = `Antes, tire ${beyond.map((g) => g.nome).join(', ')} das cadeiras acima de ${e.cadeiras}.`);
+  const config = {};
+  for (const l of SIDES) config[l] = tablesFor(props.tables, l).map((t) => ({ nome: t.nome, cadeiras: t.cadeiras }));
+  config[e.lado][e.mesa - 1] = { nome: e.nome.trim(), cadeiras: e.cadeiras };
+  tableBusy.value = true;
+  try {
+    await saveTables(config);
+    toast(`${e.nome.trim() || `Mesa ${e.mesa}`} atualizada`);
+    tableEditor.value = null;
+  } catch {
+    tableError.value = 'Não foi possível salvar. Verifique a conexão.';
+  } finally {
+    tableBusy.value = false;
+  }
+}
+
+/* ---------- Sugestão automática de lugares ---------- */
+const suggestion = ref(null); // { moves, byTable, left }
+function openSuggestion() {
+  const moves = suggestSeating(props.guests, props.tables);
+  const byTable = new Map();
+  for (const m of moves) {
+    const k = `${m.assento.lado}-${m.assento.mesa}`;
+    if (!byTable.has(k)) {
+      const t = tablesFor(props.tables, m.assento.lado)[m.assento.mesa - 1];
+      byTable.set(k, { title: `${tableTitle(t)} · Lado ${t.lado}`, names: [] });
+    }
+    byTable.get(k).names.push(m.guest.nome);
+  }
+  const waiting = props.guests.filter((g) => !g.assento && g.status !== 'nao').length;
+  suggestion.value = { moves, byTable: [...byTable.values()], left: waiting - moves.length };
+}
+async function applySuggestion() {
+  const { moves } = suggestion.value;
+  suggestion.value = null;
+  if (await applyMoves(moves)) toast(`${moves.length} pessoa(s) receberam lugar`);
+}
+
+/* ---------- Impressão ---------- */
+const doPrintMap = () => printSeatingMap(props.guests, props.tables);
+function doPrintPlates() {
+  const n = props.guests.filter((g) => g.tags.includes('placa')).length;
+  if (!n) return toast('Ninguém tem a tag Placa ainda — marque em Convidados', 'err');
+  printPlates(props.guests, props.tables);
+}
+
 /* ---------- Lista ---------- */
 const listRows = computed(() =>
-  tables.value.flatMap((t) =>
-    t.seats.map((g, i) => ({ mesa: t.mesa, cadeira: i + 1, g, first: i === 0 })),
-  ),
+  tables.value.flatMap((t) => t.seats.map((g, i) => ({ mesa: t.mesa, title: tableTitle(t), cadeira: i + 1, g, first: i === 0 }))),
 );
 function exportCsv() {
-  const rows = [['Lado', 'Mesa', 'Cadeira', 'Convidado', 'Família', 'Resposta', 'Tags']];
+  const rows = [['Lado', 'Mesa', 'Nome da mesa', 'Cadeira', 'Convidado', 'Família', 'Resposta', 'Tags']];
   for (const l of SIDES)
-    for (let m = 1; m <= TABLES_PER_SIDE; m++)
-      for (let c = 1; c <= SEATS_PER_TABLE; c++) {
-        const g = seatMap.value.get(seatKey({ lado: l, mesa: m, cadeira: c }));
-        rows.push([l, m, c, g?.nome || '(livre)', g?.familia || '', g ? STATUS[g.status].label : '', (g?.tags || []).map((t) => tagById[t]?.label).join(', ')]);
+    for (const t of tablesFor(props.tables, l))
+      for (let c = 1; c <= t.cadeiras; c++) {
+        const g = seatMap.value.get(seatKey({ lado: l, mesa: t.mesa, cadeira: c }));
+        rows.push([l, t.mesa, t.nome, c, g?.nome || '(livre)', g?.familia || '', g ? STATUS[g.status].label : '', (g?.tags || []).map((x) => tagById[x]?.label).join(', ')]);
       }
   const csv = '﻿' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
   const a = document.createElement('a');
@@ -194,6 +256,9 @@ function exportCsv() {
           <button :class="{ on: view === 'mesas' }" aria-label="Ver mesas" @click="view = 'mesas'"><LayoutGrid :size="15" /> Mesas</button>
           <button :class="{ on: view === 'lista' }" aria-label="Ver lista" @click="view = 'lista'"><List :size="15" /> Lista</button>
         </div>
+        <button class="b gold" type="button" @click="openSuggestion"><Wand2 :size="15" /> Sugerir lugares</button>
+        <button class="b" type="button" @click="doPrintMap"><Printer :size="15" /> Mapa</button>
+        <button class="b" type="button" @click="doPrintPlates"><Printer :size="15" /> Placas</button>
         <button class="b" type="button" @click="exportCsv"><Download :size="15" /> Exportar</button>
       </div>
     </div>
@@ -226,11 +291,13 @@ function exportCsv() {
               :key="lado + t.mesa"
               :lado="lado"
               :mesa="t.mesa"
+              :nome="t.nome"
               :seats="t.seats"
               :picking="picking"
               :index="i"
               @chair="(c) => onChair(t.mesa, c)"
               @drop="(c, key) => onDrop(t.mesa, c, key)"
+              @edit="editTable(t)"
             />
           </div>
 
@@ -254,7 +321,7 @@ function exportCsv() {
                   :class="{ first: r.first, free: !r.g }"
                   @click="onChair(r.mesa, r.cadeira - 1)"
                 >
-                  <td><span v-if="r.first" class="serif sp-mesa">Mesa {{ r.mesa }}</span></td>
+                  <td><span v-if="r.first" class="serif sp-mesa">{{ r.title }}</span></td>
                   <td class="num">{{ r.cadeira }}</td>
                   <td>{{ r.g ? r.g.nome : 'livre' }}</td>
                   <td class="hide-sm muted">{{ r.g?.familia || '' }}</td>
@@ -368,6 +435,60 @@ function exportCsv() {
               </li>
             </ul>
             <p v-if="!chooserList.length" class="muted">Nenhum convidado encontrado.</p>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+    <!-- Configurar mesa: fecha apenas pelo X -->
+    <Teleport to="body">
+      <Transition name="adm-pop">
+        <div v-if="tableEditor" class="adm adm-modal-backdrop">
+          <div class="adm-modal" role="dialog" aria-modal="true" aria-labelledby="sp-t-title">
+            <button class="b icon close" type="button" aria-label="Fechar" @click="tableEditor = null"><X :size="18" /></button>
+            <p class="eyebrow">Lado {{ tableEditor.lado }} · Mesa {{ tableEditor.mesa }}</p>
+            <h2 id="sp-t-title">Configurar mesa</h2>
+            <form class="sp-t-form" @submit.prevent="saveTable">
+              <label class="field">
+                Nome da mesa <small>(opcional)</small>
+                <input v-model="tableEditor.nome" maxlength="28" placeholder="Ex.: Mesa dos padrinhos" />
+              </label>
+              <div class="field">
+                Cadeiras
+                <div class="sp-stepper">
+                  <button class="b icon" type="button" aria-label="Menos uma cadeira" @click="stepSeats(-1)"><Minus :size="16" /></button>
+                  <strong class="serif">{{ tableEditor.cadeiras }}</strong>
+                  <button class="b icon" type="button" aria-label="Mais uma cadeira" @click="stepSeats(1)"><Plus :size="16" /></button>
+                </div>
+              </div>
+              <p v-if="tableError" class="error" role="alert">{{ tableError }}</p>
+              <button class="b primary" type="submit" :disabled="tableBusy">{{ tableBusy ? 'Salvando…' : 'Salvar' }}</button>
+            </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Sugestão automática: fecha apenas pelo X -->
+    <Teleport to="body">
+      <Transition name="adm-pop">
+        <div v-if="suggestion" class="adm adm-modal-backdrop">
+          <div class="adm-modal sp-sug" role="dialog" aria-modal="true" aria-labelledby="sp-s-title">
+            <button class="b icon close" type="button" aria-label="Fechar" @click="suggestion = null"><X :size="18" /></button>
+            <p class="eyebrow"><Wand2 :size="13" /> Sugestão</p>
+            <h2 id="sp-s-title">Distribuir {{ suggestion.moves.length }} pessoa(s)</h2>
+            <p class="muted">
+              Famílias ficam juntas; padrinhos e pais primeiro, depois confirmados e quem ainda vai responder.
+              Ninguém que já tem lugar é mexido.
+            </p>
+            <p v-if="!suggestion.moves.length" class="muted sp-sug-empty">Não há ninguém sem lugar (ou não há cadeiras livres).</p>
+            <ul v-else>
+              <li v-for="t in suggestion.byTable" :key="t.title">
+                <strong class="serif">{{ t.title }}</strong>
+                <span>{{ t.names.join(', ') }}</span>
+              </li>
+            </ul>
+            <p v-if="suggestion.left > 0" class="error">{{ suggestion.left }} pessoa(s) não couberam: aumente as cadeiras de alguma mesa.</p>
+            <button class="b primary" type="button" :disabled="!suggestion.moves.length" @click="applySuggestion">Aplicar sugestão</button>
           </div>
         </div>
       </Transition>
@@ -832,5 +953,55 @@ function exportCsv() {
   .sp-tables {
     grid-template-columns: 1fr 1fr;
   }
+}
+.sp-t-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+.sp-t-form small {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.sp-stepper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.sp-stepper strong {
+  min-width: 40px;
+  font-size: 2rem;
+  font-weight: 400;
+  color: var(--text);
+  text-align: center;
+}
+.sp-sug ul {
+  display: grid;
+  gap: 8px;
+  max-height: 46vh;
+  margin: 16px 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.sp-sug li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--soft);
+}
+.sp-sug li strong {
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--gold);
+}
+.sp-sug-empty {
+  margin: 16px 0;
+}
+.sp-sug .error {
+  margin-bottom: 12px;
 }
 </style>

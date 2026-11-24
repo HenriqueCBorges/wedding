@@ -32,5 +32,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // dados internos dos noivos (mesas, presentes recebidos): só eles leem e escrevem
+    match /admin/{doc} {
+      allow read, write: if isAdmin();
+    }
+    match /presentes/{id} {
+      allow read, write: if isAdmin();
+    }
   }
 }

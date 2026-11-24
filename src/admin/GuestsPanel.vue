@@ -1,34 +1,82 @@
 <script setup>
-import { ref, computed, inject } from 'vue';
-import { Search, Plus, Download, Copy, Check, Pencil, Trash2, X, Link2, Armchair } from 'lucide-vue-next';
-import { saveInvite, deleteInvite, inviteExists, randomCode, randomId } from '../api.js';
-import { TAGS, tagById, STATUS, seatShort, seatLabel, strip } from './seating.js';
+import { ref, computed, inject, watch } from 'vue';
+import {
+  Search,
+  Plus,
+  Download,
+  Copy,
+  Check,
+  Pencil,
+  Trash2,
+  X,
+  Link2,
+  Armchair,
+  Upload,
+  SlidersHorizontal,
+  CheckSquare,
+  MessageCircle,
+  BellRing,
+  Tag,
+  UserMinus,
+} from 'lucide-vue-next';
+import { saveInvite, deleteInvite, inviteExists, randomCode, randomId, saveGuestsBatch } from '../api.js';
+import { TAGS, tagById, STATUS, SIDES, seatShort, seatLabel, seatKey, strip, tablesFor, tableTitle } from './seating.js';
+import { waLink, inviteMessage, reminderMessage, inviteLink } from './whatsapp.js';
 
-const props = defineProps({ invites: Array, guests: Array });
+const props = defineProps({ invites: Array, guests: Array, tables: Object });
 const toast = inject('toast');
 const go = inject('go');
 
-/* ---------- Filtros ---------- */
+/* ---------- Filtros e ordenação ---------- */
 const search = ref('');
 const status = ref('todos');
 const tag = ref('todas');
+const more = ref(false); // painel de filtros extras
+const seat = ref('todos'); // todos | com | sem | A | B
+const kind = ref('todos'); // todos | familia | individual
+const lado = ref('todos'); // todos | noiva | noivo | ambos
+const recent = ref(false); // respondeu nos últimos 7 dias
+const sort = ref('nome'); // nome | recentes | mesa
+
 const statusOf = (inv, g) => inv.respostas[g.id] || 'pendente';
 const titleOf = (inv) => inv.familia || inv.convidados[0]?.nome || '(sem nome)';
-
+const extraCount = computed(
+  () => [seat.value !== 'todos', kind.value !== 'todos', lado.value !== 'todos', recent.value].filter(Boolean).length,
+);
+function clearExtras() {
+  seat.value = kind.value = lado.value = 'todos';
+  recent.value = false;
+}
+const weekAgo = () => Date.now() - 7 * 86400000;
+function guestMatches(inv, g) {
+  if (status.value !== 'todos' && statusOf(inv, g) !== status.value) return false;
+  if (tag.value !== 'todas' && !(g.tags || []).includes(tag.value)) return false;
+  if (seat.value === 'com' && !g.assento) return false;
+  if (seat.value === 'sem' && g.assento) return false;
+  if ((seat.value === 'A' || seat.value === 'B') && g.assento?.lado !== seat.value) return false;
+  return true;
+}
+const firstSeat = (inv) => {
+  const s = inv.convidados.map((g) => g.assento).filter(Boolean)[0];
+  return s ? (s.lado === 'A' ? 0 : 1000) + s.mesa * 20 + s.cadeira : 99999;
+};
 const visible = computed(() => {
   const q = strip(search.value);
-  return props.invites
-    .filter((inv) => {
-      const people = inv.convidados.filter(
-        (g) =>
-          (status.value === 'todos' || statusOf(inv, g) === status.value) &&
-          (tag.value === 'todas' || (g.tags || []).includes(tag.value)),
-      );
-      if (!people.length) return false;
-      if (!q) return true;
-      return strip(inv.familia).includes(q) || inv.code.toLowerCase().includes(q) || inv.convidados.some((g) => strip(g.nome).includes(q));
-    })
-    .sort((a, b) => titleOf(a).localeCompare(titleOf(b), 'pt-BR'));
+  const list = props.invites.filter((inv) => {
+    if (kind.value === 'familia' && !inv.familia) return false;
+    if (kind.value === 'individual' && inv.familia) return false;
+    if (lado.value !== 'todos' && inv.lado !== lado.value) return false;
+    if (recent.value && !(inv.respondidoEm && inv.respondidoEm > weekAgo())) return false;
+    if (!inv.convidados.some((g) => guestMatches(inv, g))) return false;
+    if (!q) return true;
+    return strip(inv.familia).includes(q) || inv.code.toLowerCase().includes(q) || inv.convidados.some((g) => strip(g.nome).includes(q));
+  });
+  const by = {
+    nome: (a, b) => titleOf(a).localeCompare(titleOf(b), 'pt-BR'),
+    recentes: (a, b) => (b.respondidoEm || 0) - (a.respondidoEm || 0),
+    mesa: (a, b) => firstSeat(a) - firstSeat(b),
+  };
+  return list.sort(by[sort.value]);
 });
 const counts = computed(() => {
   const c = { todos: props.guests.length, sim: 0, nao: 0, pendente: 0 };
@@ -48,14 +96,114 @@ async function copy(text, key, msg) {
     window.prompt('Copie o texto abaixo:', text);
   }
 }
-const inviteLink = (code) => `${location.origin}/?convite=${code}`;
+const waFor = (inv) => waLink(inv.telefone, inviteMessage(inv));
+
+/* ---------- Lembrar quem não respondeu ---------- */
+const pendingInvites = computed(() => props.invites.filter((inv) => !inv.respondidoEm && inv.convidados.length));
+const reminders = ref(false);
+
+/* ---------- Seleção e ações em massa ---------- */
+const selecting = ref(false);
+const selected = ref(new Set()); // chaves "codigo:id"
+const keyOf = (inv, g) => `${inv.code}:${g.id}`;
+function toggle(inv, g) {
+  const s = new Set(selected.value);
+  const k = keyOf(inv, g);
+  s.has(k) ? s.delete(k) : s.add(k);
+  selected.value = s;
+}
+function toggleInvite(inv) {
+  const keys = inv.convidados.map((g) => keyOf(inv, g));
+  const all = keys.every((k) => selected.value.has(k));
+  const s = new Set(selected.value);
+  keys.forEach((k) => (all ? s.delete(k) : s.add(k)));
+  selected.value = s;
+}
+function selectVisible() {
+  const s = new Set();
+  for (const inv of visible.value) for (const g of inv.convidados) if (guestMatches(inv, g)) s.add(keyOf(inv, g));
+  selected.value = s;
+}
+function stopSelecting() {
+  selecting.value = false;
+  selected.value = new Set();
+}
+watch(selecting, (v) => !v && (selected.value = new Set()));
+
+const busy = ref(false);
+async function bulkUpdate(mutate, okMsg) {
+  const byCode = new Map();
+  for (const k of selected.value) {
+    const [code, id] = k.split(':');
+    if (!byCode.has(code)) {
+      const inv = props.invites.find((i) => i.code === code);
+      if (!inv) continue;
+      byCode.set(code, inv.convidados.map((g) => ({ ...g, tags: [...(g.tags || [])] })));
+    }
+    const g = byCode.get(code).find((x) => x.id === id);
+    if (g) mutate(g, code);
+  }
+  busy.value = true;
+  try {
+    await saveGuestsBatch(byCode);
+    toast(okMsg);
+    return true;
+  } catch {
+    toast('Não foi possível aplicar a ação', 'err');
+    return false;
+  } finally {
+    busy.value = false;
+  }
+}
+const bulkTag = ref('');
+async function applyTag(add) {
+  if (!bulkTag.value) return;
+  const t = bulkTag.value;
+  await bulkUpdate(
+    (g) => (g.tags = add ? [...new Set([...g.tags, t])] : g.tags.filter((x) => x !== t)),
+    `${add ? 'Tag adicionada a' : 'Tag removida de'} ${selected.value.size} pessoa(s)`,
+  );
+}
+async function unseatSelected() {
+  await bulkUpdate((g) => (g.assento = null), `${selected.value.size} pessoa(s) sem lugar`);
+}
+
+/* mandar a seleção para uma mesa (ocupa as cadeiras livres em ordem) */
+const target = ref('');
+const tableOptions = computed(() => SIDES.flatMap((l) => tablesFor(props.tables, l)));
+const taken = computed(() => new Set(props.guests.filter((g) => g.assento).map((g) => seatKey(g.assento))));
+function freeSeatsOf(t) {
+  return Array.from({ length: t.cadeiras }, (_, i) => ({ lado: t.lado, mesa: t.mesa, cadeira: i + 1 })).filter(
+    (s) => !taken.value.has(seatKey(s)),
+  );
+}
+async function sendToTable() {
+  const t = tableOptions.value.find((x) => `${x.lado}-${x.mesa}` === target.value);
+  if (!t) return;
+  const free = freeSeatsOf(t);
+  const people = [...selected.value].filter((k) => {
+    const g = props.guests.find((x) => x.key === k);
+    return g && !(g.assento && g.assento.lado === t.lado && g.assento.mesa === t.mesa);
+  });
+  if (!free.length) return toast(`${tableTitle(t)} (Lado ${t.lado}) está cheia`, 'err');
+  const placing = new Map(people.slice(0, free.length).map((k, i) => [k, free[i]]));
+  const ok = await bulkUpdate((g, code) => {
+    const s = placing.get(`${code}:${g.id}`);
+    if (s) g.assento = s;
+  }, `${placing.size} pessoa(s) em ${tableTitle(t)} · Lado ${t.lado}`);
+  if (ok && people.length > free.length) toast(`Só havia ${free.length} cadeira(s) livre(s); ${people.length - free.length} ficaram de fora`, 'err');
+}
+function exportSelected() {
+  exportCsv([...selected.value]);
+}
 
 /* ---------- Editor (fecha só pelo X) ---------- */
 const editor = ref(null);
 const editorError = ref('');
-const busy = ref(false);
+const saving = ref(false);
+const blankGuest = () => ({ id: randomId(), nome: '', tags: [], assento: null });
 function openNew() {
-  editor.value = { isNew: true, code: randomCode(), familia: '', convidados: [blankGuest()], respostas: {} };
+  editor.value = { isNew: true, code: randomCode(), familia: '', telefone: '', lado: '', convidados: [blankGuest()], respostas: {} };
   editorError.value = '';
 }
 function openEdit(inv) {
@@ -63,12 +211,13 @@ function openEdit(inv) {
     isNew: false,
     code: inv.code,
     familia: inv.familia || '',
+    telefone: inv.telefone || '',
+    lado: inv.lado || '',
     convidados: inv.convidados.map((g) => ({ ...g, tags: [...(g.tags || [])] })),
     respostas: { ...inv.respostas },
   };
   editorError.value = '';
 }
-const blankGuest = () => ({ id: randomId(), nome: '', tags: [], assento: null });
 function toggleTag(g, id) {
   g.tags = g.tags.includes(id) ? g.tags.filter((t) => t !== id) : [...g.tags, id];
 }
@@ -78,7 +227,7 @@ async function save() {
   editorError.value = '';
   if (!convidados.length) return (editorError.value = 'Inclua pelo menos um convidado.');
   if (!/^[A-Z0-9]{6}$/.test(e.code)) return (editorError.value = 'O código deve ter 6 letras ou números.');
-  busy.value = true;
+  saving.value = true;
   try {
     if (e.isNew && (await inviteExists(e.code))) return (editorError.value = 'Já existe um convite com esse código. Gere outro.');
     await saveInvite({ ...e, convidados }, { isNew: e.isNew });
@@ -87,7 +236,7 @@ async function save() {
   } catch {
     editorError.value = 'Não foi possível salvar. Verifique a conexão e tente de novo.';
   } finally {
-    busy.value = false;
+    saving.value = false;
   }
 }
 async function remove(inv) {
@@ -101,10 +250,14 @@ async function remove(inv) {
 }
 
 /* ---------- Exportar ---------- */
-function exportCsv() {
-  const rows = [['Código', 'Família', 'Convidado', 'Resposta', 'Tags', 'Lugar', 'Respondido em', 'Link do convite']];
-  for (const inv of visible.value)
-    for (const g of inv.convidados)
+const ladoLabel = { noiva: 'Noiva', noivo: 'Noivo', ambos: 'Ambos' };
+function exportCsv(onlyKeys) {
+  const only = onlyKeys ? new Set(onlyKeys) : null;
+  const rows = [['Código', 'Família', 'Convidado', 'Resposta', 'Tags', 'Lugar', 'Convidado de', 'WhatsApp', 'Respondido em', 'Link do convite']];
+  const source = only ? props.invites : visible.value;
+  for (const inv of source)
+    for (const g of inv.convidados) {
+      if (only && !only.has(keyOf(inv, g))) continue;
       rows.push([
         inv.code,
         inv.familia || '',
@@ -112,9 +265,12 @@ function exportCsv() {
         STATUS[statusOf(inv, g)].label,
         (g.tags || []).map((t) => tagById[t]?.label).join(', '),
         seatLabel(g.assento),
+        ladoLabel[inv.lado] || '',
+        inv.telefone || '',
         inv.respondidoEm ? inv.respondidoEm.toLocaleString('pt-BR') : '',
         inviteLink(inv.code),
       ]);
+    }
   const csv = '﻿' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -125,7 +281,7 @@ function exportCsv() {
 </script>
 
 <template>
-  <section>
+  <section :class="{ 'gp-selecting': selecting }">
     <div class="section-head">
       <div>
         <p class="eyebrow">Lista</p>
@@ -133,7 +289,9 @@ function exportCsv() {
         <p>{{ invites.length }} convites · {{ guests.length }} pessoas</p>
       </div>
       <div class="gp-actions">
-        <button class="b" type="button" @click="exportCsv"><Download :size="15" /> Exportar</button>
+        <button class="b" type="button" @click="reminders = true"><BellRing :size="15" /> Lembrar pendentes</button>
+        <button class="b" type="button" @click="go('importar')"><Upload :size="15" /> Importar</button>
+        <button class="b" type="button" @click="exportCsv()"><Download :size="15" /> Exportar</button>
         <button class="b primary" type="button" @click="openNew"><Plus :size="15" /> Novo convite</button>
       </div>
     </div>
@@ -149,18 +307,74 @@ function exportCsv() {
           <small>{{ counts[s] }}</small>
         </button>
       </div>
-      <div class="gp-tagfilter">
-        <button :class="['tag', { on: tag === 'todas' }]" style="--c: #a5b6ec" @click="tag = 'todas'">Todas as tags</button>
-        <button
-          v-for="t in TAGS"
-          :key="t.id"
-          :class="['tag', { on: tag === t.id }]"
-          :style="{ '--c': t.color }"
-          @click="tag = tag === t.id ? 'todas' : t.id"
-        >
-          {{ t.short }}
-        </button>
+      <div class="gp-row">
+        <div class="gp-tagfilter">
+          <button :class="['tag', { on: tag === 'todas' }]" style="--c: #a5b6ec" @click="tag = 'todas'">Todas as tags</button>
+          <button
+            v-for="t in TAGS"
+            :key="t.id"
+            :class="['tag', { on: tag === t.id }]"
+            :style="{ '--c': t.color }"
+            @click="tag = tag === t.id ? 'todas' : t.id"
+          >
+            {{ t.short }}
+          </button>
+        </div>
+        <div class="gp-tools">
+          <label class="gp-sort">
+            <span class="muted">Ordenar</span>
+            <select v-model="sort" aria-label="Ordenar">
+              <option value="nome">Nome</option>
+              <option value="recentes">Resposta mais recente</option>
+              <option value="mesa">Mesa</option>
+            </select>
+          </label>
+          <button :class="['b', { on: more || extraCount }]" type="button" @click="more = !more">
+            <SlidersHorizontal :size="15" /> Filtros<span v-if="extraCount" class="gp-badge">{{ extraCount }}</span>
+          </button>
+          <button :class="['b', { on: selecting }]" type="button" @click="selecting = !selecting">
+            <CheckSquare :size="15" /> {{ selecting ? 'Cancelar seleção' : 'Selecionar' }}
+          </button>
+        </div>
       </div>
+      <Transition name="gp-more">
+        <div v-if="more" class="gp-more">
+          <label class="field">
+            Lugar
+            <select v-model="seat">
+              <option value="todos">Todos</option>
+              <option value="sem">Sem lugar</option>
+              <option value="com">Com lugar</option>
+              <option value="A">No Lado A</option>
+              <option value="B">No Lado B</option>
+            </select>
+          </label>
+          <label class="field">
+            Tipo de convite
+            <select v-model="kind">
+              <option value="todos">Todos</option>
+              <option value="familia">Família</option>
+              <option value="individual">Individual</option>
+            </select>
+          </label>
+          <label class="field">
+            Convidado de
+            <select v-model="lado">
+              <option value="todos">Todos</option>
+              <option value="noiva">Noiva</option>
+              <option value="noivo">Noivo</option>
+              <option value="ambos">Ambos</option>
+            </select>
+          </label>
+          <label class="gp-check"><input v-model="recent" type="checkbox" /> Responderam nos últimos 7 dias</label>
+          <button v-if="extraCount" class="b" type="button" @click="clearExtras">Limpar filtros</button>
+        </div>
+      </Transition>
+    </div>
+
+    <div v-if="selecting" class="gp-selhint muted">
+      Toque nas pessoas para selecionar.
+      <button type="button" @click="selectVisible">Selecionar todas as visíveis</button>
     </div>
 
     <div v-if="!invites.length" class="empty">
@@ -173,8 +387,11 @@ function exportCsv() {
       <li v-for="(inv, i) in visible" :key="inv.code" class="card gp-card rise" :style="{ '--i': Math.min(i, 12) }">
         <header>
           <div>
-            <strong class="serif">{{ titleOf(inv) }}</strong>
-            <small>{{ inv.familia ? `${inv.convidados.length} pessoa(s)` : 'Convite individual' }}</small>
+            <strong class="serif" @click="selecting && toggleInvite(inv)">{{ titleOf(inv) }}</strong>
+            <small>
+              {{ inv.familia ? `${inv.convidados.length} pessoa(s)` : 'Convite individual' }}
+              <template v-if="inv.lado"> · {{ ladoLabel[inv.lado] }}</template>
+            </small>
           </div>
           <button class="gp-code" type="button" title="Copiar código" @click="copy(inv.code, 'c' + inv.code, 'Código copiado')">
             {{ inv.code }}
@@ -182,7 +399,13 @@ function exportCsv() {
           </button>
         </header>
         <ul class="gp-people">
-          <li v-for="g in inv.convidados" :key="g.id">
+          <li
+            v-for="g in inv.convidados"
+            :key="g.id"
+            :class="{ dim: !guestMatches(inv, g), sel: selected.has(keyOf(inv, g)) }"
+            @click="selecting && toggle(inv, g)"
+          >
+            <span v-if="selecting" class="gp-box" aria-hidden="true"><Check :size="12" /></span>
             <div class="gp-person">
               <span>{{ g.nome }}</span>
               <span class="gp-tags">
@@ -198,9 +421,14 @@ function exportCsv() {
           </li>
         </ul>
         <footer>
-          <button class="gp-link" type="button" @click="copy(inviteLink(inv.code), 'l' + inv.code, 'Link do convite copiado')">
-            <Link2 :size="13" /> {{ copied === 'l' + inv.code ? 'Link copiado!' : 'Copiar link do convite' }}
-          </button>
+          <div class="gp-links">
+            <button class="gp-link" type="button" @click="copy(inviteLink(inv.code), 'l' + inv.code, 'Link do convite copiado')">
+              <Link2 :size="13" /> {{ copied === 'l' + inv.code ? 'Copiado!' : 'Copiar link' }}
+            </button>
+            <a v-if="inv.telefone" class="gp-link wa" :href="waFor(inv)" target="_blank" rel="noopener">
+              <MessageCircle :size="13" /> WhatsApp
+            </a>
+          </div>
           <div>
             <button class="b icon" type="button" title="Editar" @click="openEdit(inv)"><Pencil :size="15" /></button>
             <button class="b icon danger" type="button" title="Excluir" @click="remove(inv)"><Trash2 :size="15" /></button>
@@ -208,6 +436,72 @@ function exportCsv() {
         </footer>
       </li>
     </TransitionGroup>
+
+    <!-- Barra de ações em massa -->
+    <Transition name="gp-bar">
+      <div v-if="selecting" class="gp-bulk card">
+        <strong>{{ selected.size }} selecionada(s)</strong>
+        <div class="gp-bulk-group">
+          <Tag :size="15" />
+          <select v-model="bulkTag" aria-label="Tag">
+            <option value="">Tag…</option>
+            <option v-for="t in TAGS" :key="t.id" :value="t.id">{{ t.label }}</option>
+          </select>
+          <button class="b" type="button" :disabled="!selected.size || !bulkTag || busy" @click="applyTag(true)">Adicionar</button>
+          <button class="b" type="button" :disabled="!selected.size || !bulkTag || busy" @click="applyTag(false)">Remover</button>
+        </div>
+        <div class="gp-bulk-group">
+          <Armchair :size="15" />
+          <select v-model="target" aria-label="Mesa">
+            <option value="">Mandar para a mesa…</option>
+            <optgroup v-for="l in SIDES" :key="l" :label="`Lado ${l}`">
+              <option
+                v-for="t in tableOptions.filter((x) => x.lado === l)"
+                :key="l + t.mesa"
+                :value="`${l}-${t.mesa}`"
+              >
+                {{ tableTitle(t) }} · {{ freeSeatsOf(t).length }} livre(s)
+              </option>
+            </optgroup>
+          </select>
+          <button class="b primary" type="button" :disabled="!selected.size || !target || busy" @click="sendToTable">Mandar</button>
+          <button class="b" type="button" :disabled="!selected.size || busy" title="Tirar das mesas" @click="unseatSelected">
+            <UserMinus :size="15" />
+          </button>
+        </div>
+        <button class="b" type="button" :disabled="!selected.size" @click="exportSelected"><Download :size="15" /></button>
+        <button class="b icon" type="button" aria-label="Fechar seleção" @click="stopSelecting"><X :size="16" /></button>
+      </div>
+    </Transition>
+
+    <!-- Lembrar pendentes: fecha apenas pelo X -->
+    <Teleport to="body">
+      <Transition name="adm-pop">
+        <div v-if="reminders" class="adm adm-modal-backdrop">
+          <div class="adm-modal gp-rem" role="dialog" aria-modal="true" aria-labelledby="gp-rem-title">
+            <button class="b icon close" type="button" aria-label="Fechar" @click="reminders = false"><X :size="18" /></button>
+            <p class="eyebrow">WhatsApp</p>
+            <h2 id="gp-rem-title">Lembrar quem não respondeu</h2>
+            <p class="muted">{{ pendingInvites.length }} convite(s) ainda sem resposta. Toque para abrir a conversa com a mensagem pronta.</p>
+            <ul>
+              <li v-for="inv in pendingInvites" :key="inv.code">
+                <div>
+                  <strong>{{ titleOf(inv) }}</strong>
+                  <small>{{ inv.telefone || 'sem WhatsApp cadastrado' }}</small>
+                </div>
+                <a v-if="inv.telefone" class="b gold" :href="waLink(inv.telefone, reminderMessage(inv))" target="_blank" rel="noopener">
+                  <MessageCircle :size="14" /> Lembrar
+                </a>
+                <button v-else class="b" type="button" @click="copy(reminderMessage(inv), 'r' + inv.code, 'Mensagem copiada')">
+                  <Copy :size="14" /> {{ copied === 'r' + inv.code ? 'Copiada' : 'Copiar mensagem' }}
+                </button>
+              </li>
+            </ul>
+            <p v-if="!pendingInvites.length" class="muted">Todo mundo já respondeu. 🎉</p>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Editor: fecha apenas pelo X -->
     <Teleport to="body">
@@ -222,6 +516,21 @@ function exportCsv() {
                 Família <small>(opcional — vazio = convite individual)</small>
                 <input v-model="editor.familia" placeholder="Ex.: Família Oliveira" />
               </label>
+              <div class="ed-two">
+                <label class="field">
+                  WhatsApp <small>(com DDD)</small>
+                  <input v-model="editor.telefone" inputmode="tel" placeholder="(71) 99999-8888" />
+                </label>
+                <label class="field">
+                  Convidado de
+                  <select v-model="editor.lado">
+                    <option value="">—</option>
+                    <option value="noiva">Noiva</option>
+                    <option value="noivo">Noivo</option>
+                    <option value="ambos">Ambos</option>
+                  </select>
+                </label>
+              </div>
               <div class="ed-people">
                 <span class="ed-label">Convidados e tags</span>
                 <TransitionGroup name="gp-list">
@@ -270,7 +579,7 @@ function exportCsv() {
                 </div>
               </label>
               <p v-if="editorError" class="error" role="alert">{{ editorError }}</p>
-              <button class="b primary" type="submit" :disabled="busy">{{ busy ? 'Salvando…' : 'Salvar convite' }}</button>
+              <button class="b primary" type="submit" :disabled="saving">{{ saving ? 'Salvando…' : 'Salvar convite' }}</button>
             </form>
           </div>
         </div>
@@ -282,15 +591,28 @@ function exportCsv() {
 <style scoped>
 .gp-actions {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .gp-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
   gap: 12px;
   padding: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+}
+.gp-filters > .search,
+.gp-filters > .gp-status {
+  width: 100%;
+}
+@media (min-width: 1000px) {
+  .gp-filters {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+  .gp-row,
+  .gp-more {
+    grid-column: 1 / -1;
+  }
 }
 .gp-status small {
   margin-left: 2px;
@@ -299,10 +621,94 @@ function exportCsv() {
   background: rgba(255, 255, 255, 0.07);
   font-size: 10.5px;
 }
+.gp-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
 .gp-tagfilter {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+.gp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.gp-tools .b.on {
+  border-color: rgba(165, 182, 236, 0.6);
+  background: rgba(165, 182, 236, 0.12);
+}
+.gp-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.gp-sort select {
+  width: auto;
+  min-height: 40px;
+}
+.gp-badge {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #2a1f0e;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.gp-more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.gp-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  font-size: 13px;
+  color: var(--soft);
+}
+.gp-check input {
+  width: 16px;
+  min-height: 16px;
+  accent-color: #a5b6ec;
+}
+.gp-more-enter-active,
+.gp-more-leave-active {
+  transition:
+    opacity 0.3s,
+    transform 0.35s var(--ease);
+}
+.gp-more-enter-from,
+.gp-more-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.gp-selhint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.gp-selhint button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
 }
 .gp-grid {
   display: grid;
@@ -311,6 +717,9 @@ function exportCsv() {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.gp-selecting .gp-grid {
+  padding-bottom: 110px;
 }
 .gp-card {
   display: flex;
@@ -367,10 +776,45 @@ function exportCsv() {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
+  border: 1px solid transparent;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.025);
+  transition:
+    opacity 0.25s,
+    border-color 0.2s,
+    background 0.2s;
+}
+.gp-people > li.dim {
+  opacity: 0.4;
+}
+.gp-selecting .gp-people > li {
+  cursor: pointer;
+}
+.gp-people > li.sel {
+  border-color: rgba(165, 182, 236, 0.55);
+  background: rgba(165, 182, 236, 0.1);
+  opacity: 1;
+}
+.gp-box {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 5px;
+  color: transparent;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.sel .gp-box {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 .gp-person {
+  flex: 1;
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -404,6 +848,11 @@ function exportCsv() {
   display: flex;
   gap: 6px;
 }
+.gp-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px !important;
+}
 .gp-link {
   display: inline-flex;
   align-items: center;
@@ -413,6 +862,62 @@ function exportCsv() {
   background: none;
   color: var(--accent);
   font-size: 12px;
+  text-decoration: none;
+}
+.gp-link.wa {
+  color: #7fd6a0;
+}
+
+/* barra de ações em massa */
+.gp-bulk {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 40;
+  translate: -50% 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: min(980px, calc(100vw - 40px));
+  padding: 12px 14px;
+  border-color: rgba(165, 182, 236, 0.35);
+  background: rgba(26, 38, 66, 0.96);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.9);
+}
+.gp-bulk strong {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.gp-bulk-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+}
+.gp-bulk-group select {
+  width: auto;
+  max-width: 230px;
+  min-height: 40px;
+}
+.gp-bulk > .b.icon {
+  margin-left: auto;
+}
+.gp-bar-enter-active,
+.gp-bar-leave-active {
+  transition:
+    opacity 0.3s,
+    transform 0.4s var(--ease);
+}
+.gp-bar-enter-from,
+.gp-bar-leave-to {
+  opacity: 0;
+  transform: translateY(30px);
 }
 .gp-list-move,
 .gp-list-enter-active,
@@ -430,6 +935,38 @@ function exportCsv() {
   position: absolute;
 }
 
+/* lembretes */
+.gp-rem ul {
+  display: grid;
+  gap: 8px;
+  max-height: 55vh;
+  margin: 16px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.gp-rem li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.gp-rem li strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+.gp-rem li small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.gp-rem .b {
+  text-decoration: none;
+}
+
 /* editor */
 .ed-form {
   display: grid;
@@ -439,6 +976,11 @@ function exportCsv() {
 .ed-form small {
   font-size: 11px;
   opacity: 0.8;
+}
+.ed-two {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 10px;
 }
 .ed-people {
   display: grid;
@@ -477,18 +1019,25 @@ function exportCsv() {
   font-family: ui-monospace, monospace;
   letter-spacing: 0.2em;
 }
+@media (max-width: 900px) {
+  .gp-bulk {
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+  }
+  .gp-selecting .gp-grid {
+    padding-bottom: 190px;
+  }
+}
 @media (max-width: 760px) {
   .gp-grid {
     grid-template-columns: 1fr;
   }
   .gp-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     width: 100%;
-  }
-  .gp-actions .b {
-    flex: 1;
   }
   .gp-status {
-    width: 100%;
     overflow-x: auto;
   }
   .gp-status button {
@@ -497,8 +1046,20 @@ function exportCsv() {
     padding: 8px 8px;
   }
   .gp-people > li {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .gp-bulk-group {
+    flex-wrap: wrap;
+    width: 100%;
+    padding-left: 0;
+    border-left: 0;
+  }
+  .gp-bulk-group select {
+    flex: 1;
+    max-width: none;
+  }
+  .ed-two {
+    grid-template-columns: 1fr;
   }
 }
 </style>
