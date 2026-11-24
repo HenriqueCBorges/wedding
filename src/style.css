@@ -824,7 +824,11 @@ p {
 .section-wrap {
   max-width: 1380px;
   margin: auto;
-  padding: 130px 7%;
+  padding: clamp(76px, 7.5vw, 108px) 7%;
+}
+/* duas seções seguidas no mesmo fundo não somam o respiro */
+.section-wrap + .section-wrap {
+  padding-top: clamp(16px, 2.5vw, 36px);
 }
 .ceremony {
   display: grid;
@@ -1041,7 +1045,7 @@ p {
   background: var(--navy);
   color: #fff;
   text-align: center;
-  padding: 120px 20px;
+  padding: clamp(80px, 7vw, 104px) 20px;
 }
 .quote-glow {
   position: absolute;
@@ -1119,7 +1123,7 @@ p {
 /* ---------- Galeria ---------- */
 .section-heading {
   text-align: center;
-  margin-bottom: 56px;
+  margin-bottom: 44px;
 }
 .section-heading h2 {
   margin-bottom: 15px;
@@ -1247,7 +1251,7 @@ p {
     radial-gradient(ellipse at 90% 100%, #22417f 0%, transparent 50%), var(--navy);
   color: #fff;
   text-align: center;
-  padding: 130px 20px;
+  padding: clamp(84px, 8vw, 112px) 20px;
 }
 .rsvp-inner {
   position: relative;
@@ -2309,7 +2313,7 @@ p {
     font-size: 18px;
   }
   .section-wrap {
-    padding: 84px 22px;
+    padding: 68px 22px;
   }
   .ceremony-art::before {
     inset: -10px -10px 22px 10px;

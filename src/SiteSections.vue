@@ -15,9 +15,9 @@ const avoid = [
   { name: 'Bege', color: '#e3d2b4' },
 ];
 const looks = [
-  { img: 'dress-1', caption: 'Azul-marinho & verde-esmeralda' },
-  { img: 'dress-2', caption: 'Grafite & bordô' },
-  { img: 'dress-3', caption: 'Azul-petróleo & índigo' },
+  { img: 'dress-1', h: 865, caption: 'Azul-petróleo & verde-esmeralda' },
+  { img: 'dress-2', h: 803, caption: 'Bordô & azul-marinho' },
+  { img: 'dress-3', h: 865, caption: 'Azul-marinho & ameixa' },
 ];
 
 /* ---------- Perguntas frequentes ---------- */
@@ -74,9 +74,9 @@ const open = ref(-1);
     <ul class="ss-looks">
       <li v-for="(l, i) in looks" :key="l.img" v-reveal="i * 140">
         <figure>
-          <picture>
+          <picture :style="{ aspectRatio: `522 / ${l.h}` }">
             <source type="image/avif" :srcset="`/art/${l.img}.avif`" />
-            <img :src="`/art/${l.img}.webp`" :alt="`Exemplo de traje: ${l.caption}`" loading="lazy" width="494" height="1000" />
+            <img :src="`/art/${l.img}.webp`" :alt="`Exemplo de traje: ${l.caption}`" loading="lazy" width="522" :height="l.h" />
           </picture>
           <figcaption>{{ l.caption }}</figcaption>
         </figure>
@@ -150,14 +150,12 @@ const open = ref(-1);
 .ss-looks {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
-  max-width: 1080px;
+  align-items: end;
+  gap: 20px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 0;
   list-style: none;
-}
-.ss-looks li:nth-child(2) {
-  margin-top: 40px;
 }
 .ss-looks figure {
   margin: 0;
@@ -165,23 +163,21 @@ const open = ref(-1);
 .ss-looks picture {
   display: block;
   overflow: hidden;
-  aspect-ratio: 494 / 820;
   border-radius: 999px 999px 18px 18px;
-  background: #6d82a6;
+  background: #5f79a3;
   box-shadow: 0 16px 30px -22px rgba(11, 31, 73, 0.45);
 }
 .ss-looks img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 12%;
   transition: transform 1.2s var(--ease-out);
 }
 .ss-looks li:hover img {
   transform: scale(1.05);
 }
 .ss-looks figcaption {
-  margin-top: 14px;
+  margin-top: 12px;
   text-align: center;
   font-family: var(--script);
   font-style: italic;
@@ -197,8 +193,8 @@ const open = ref(-1);
   justify-content: center;
   gap: 18px 48px;
   max-width: 820px;
-  margin: 64px auto 0;
-  padding: 26px 0;
+  margin: 44px auto 0;
+  padding: 22px 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -356,9 +352,6 @@ const open = ref(-1);
   .ss-looks li {
     flex: 0 0 68%;
     scroll-snap-align: center;
-  }
-  .ss-looks li:nth-child(2) {
-    margin-top: 0;
   }
   .ss-colors {
     flex-direction: column;
