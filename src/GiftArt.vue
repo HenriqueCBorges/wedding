@@ -544,43 +544,6 @@ onUnmounted(() => observer?.disconnect());
         </g>
       </template>
 
-      <!-- ============ Dress code: terno ============ -->
-      <template v-else-if="name === 'terno'">
-        <g class="wash"><path d="M56 22 L80 32 L104 22 L118 32 L112 102 H48 L42 32 Z" /></g>
-        <g class="ink">
-          <path d="M80 22 V13 q0 -6 5 -6 q5 0 5 5" />
-          <path d="M54 22 L80 13 L106 22" />
-          <path d="M56 22 L80 32 L104 22 L118 32 L112 102 H48 L42 32 Z" />
-          <path d="M70 24 L65 52 L80 74" />
-          <path d="M90 24 L95 52 L80 74" />
-          <path d="M80 34 L76 44 L80 66 L84 44 Z" />
-          <circle cx="80" cy="82" r="1.8" />
-          <circle cx="80" cy="92" r="1.8" />
-          <path class="h" d="M95 60 H106 M54 66 H64" />
-          <path d="M42 32 L34 94 H44" />
-          <path d="M118 32 L126 94 H116" />
-          <path :d="sparkle(24, 26, 3)" />
-          <path :d="sparkle(138, 30, 3.5)" />
-        </g>
-      </template>
-
-      <!-- ============ Dress code: vestido ============ -->
-      <template v-else-if="name === 'vestido'">
-        <g class="wash"><path d="M68 36 Q80 42 92 36 L90 54 Q104 80 114 102 Q80 108 46 102 Q56 80 70 54 Z" /></g>
-        <g class="ink">
-          <path d="M80 18 V11 q0 -5 4 -5 q4 0 4 4" />
-          <path d="M60 22 L80 11 L100 22" />
-          <path d="M70 18 L68 36 M90 18 L92 36" />
-          <path d="M68 36 Q80 42 92 36 L90 54 Q80 58 70 54 Z" />
-          <path d="M70 54 Q56 80 46 102 Q80 108 114 102 Q104 80 90 54" />
-          <path class="h" d="M76 58 Q70 80 63 104 M84 58 Q90 80 97 104 M80 58 V106" />
-          <path class="h" d="M71 46 Q80 49 89 46" />
-          <path :d="sparkle(30, 30, 3.5)" />
-          <path :d="sparkle(132, 24, 3)" />
-          <path :d="sparkle(130, 88, 2.5)" />
-        </g>
-      </template>
-
       <!-- ============ Dicas: hospedagem ============ -->
       <template v-else-if="name === 'cama'">
         <g class="wash"><path d="M30 70 H130 V84 H30 Z" /></g>

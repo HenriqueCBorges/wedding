@@ -1,8 +1,8 @@
 <script setup>
 // Seções informativas do site: dress code, hospedagem e dicas, perguntas frequentes.
-// Conteúdo fixo, no mesmo traço das ilustrações da lista de presentes.
+// Conteúdo fixo, no visual das demais seções do site.
 import { ref } from 'vue';
-import { MapPin, Plus, ExternalLink, Check, X } from 'lucide-vue-next';
+import { MapPin, Plus, ExternalLink } from 'lucide-vue-next';
 import { vReveal } from './reveal.js';
 import GiftArt from './GiftArt.vue';
 import { MAP_URL } from './calendar.js';
@@ -17,7 +17,6 @@ const avoid = [
   { name: 'Off-white', color: '#f6f0e4' },
   { name: 'Bege', color: '#e3d2b4' },
 ];
-const welcome = ['#1b3474', '#2f6b5a', '#7a2e3a', '#c9786a', '#5d4a8a', '#c9a24a', '#3d7fae', '#1d1d24'];
 const looks = [
   { img: 'dress-1', caption: 'Azul-marinho & verde-esmeralda' },
   { img: 'dress-2', caption: 'Grafite & bordô' },
@@ -119,52 +118,39 @@ const open = ref(-1);
 
 <template>
   <!-- ============ Dress code ============ -->
-  <section v-if="part === 'dress'" id="dress-code" class="ss ss-dress">
-    <div class="ss-dress-card">
-      <div class="ss-dress-figs" aria-hidden="true">
-        <div v-reveal:left class="ss-fig"><GiftArt name="vestido" /></div>
-        <div v-reveal:left="150" class="ss-fig"><GiftArt name="terno" /></div>
-      </div>
-      <div class="ss-dress-copy">
-        <p v-reveal class="eyebrow">Dress code</p>
-        <h2 v-reveal="100">Esporte fino <i>&amp;</i> social</h2>
-        <p v-reveal="200" class="ss-lead">Venha elegante e confortável para celebrar com a gente à beira do lago.</p>
-
-        <div v-reveal="300" class="ss-swatches">
-          <p class="ss-label"><X :size="14" /> Por favor, evite</p>
-          <ul>
-            <li v-for="(c, i) in avoid" :key="c.name" :style="{ '--d': i * 120 + 'ms' }">
-              <span class="ss-swatch no" :style="{ background: c.color }"></span>
-              <small>{{ c.name }}</small>
-            </li>
-          </ul>
-          <p class="ss-note">Esses tons ficam reservados para a noiva.</p>
-        </div>
-
-        <div v-reveal="400" class="ss-swatches">
-          <p class="ss-label ok"><Check :size="14" /> Todas as outras cores são bem-vindas</p>
-          <ul class="ss-welcome">
-            <li v-for="(c, i) in welcome" :key="c" :style="{ '--d': i * 70 + 'ms' }">
-              <span class="ss-swatch" :style="{ background: c }"></span>
-            </li>
-          </ul>
-        </div>
-      </div>
+  <section v-if="part === 'dress'" id="dress-code" class="ss ss-dress section-wrap">
+    <div class="section-heading">
+      <p v-reveal class="eyebrow">Dress code</p>
+      <h2 v-reveal="100">Esporte fino <i>&amp; social</i></h2>
+      <p v-reveal="200">Venha elegante e confortável para celebrar com a gente à beira do lago.</p>
     </div>
 
-    <div class="ss-looks">
-      <p v-reveal class="eyebrow">Inspirações</p>
-      <ul>
-        <li v-for="(l, i) in looks" :key="l.img" v-reveal="i * 140">
-          <figure>
-            <picture>
-              <source type="image/avif" :srcset="`/art/${l.img}.avif`" />
-              <img :src="`/art/${l.img}.webp`" :alt="`Exemplo de traje: ${l.caption}`" loading="lazy" width="494" height="1000" />
-            </picture>
-            <figcaption>{{ l.caption }}</figcaption>
-          </figure>
-        </li>
-      </ul>
+    <ul class="ss-looks">
+      <li v-for="(l, i) in looks" :key="l.img" v-reveal="i * 140">
+        <figure>
+          <picture>
+            <source type="image/avif" :srcset="`/art/${l.img}.avif`" />
+            <img :src="`/art/${l.img}.webp`" :alt="`Exemplo de traje: ${l.caption}`" loading="lazy" width="494" height="1000" />
+          </picture>
+          <figcaption>{{ l.caption }}</figcaption>
+        </figure>
+      </li>
+    </ul>
+
+    <div v-reveal="200" class="ss-colors">
+      <div class="ss-colors-avoid">
+        <small>Por favor, evite</small>
+        <ul>
+          <li v-for="(c, i) in avoid" :key="c.name" :style="{ '--d': 300 + i * 140 + 'ms' }">
+            <span class="ss-swatch" :style="{ background: c.color }"></span>
+            <span>{{ c.name }}</span>
+          </li>
+        </ul>
+      </div>
+      <p class="ss-colors-note">
+        Esses tons ficam reservados para a noiva.<br />
+        <b>Todas as outras cores são muito bem-vindas.</b>
+      </p>
     </div>
   </section>
 
@@ -242,148 +228,17 @@ const open = ref(-1);
 }
 
 /* ---------- Dress code ---------- */
-.ss-dress {
-  padding: 40px 6% 110px;
-}
-.ss-dress-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  align-items: center;
-  gap: 40px;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 48px clamp(22px, 4vw, 56px);
-  border: 1px solid rgba(29, 58, 138, 0.16);
-  border-radius: 28px;
-  background:
-    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.85), transparent 60%),
-    #fcf1e5;
-  box-shadow: 0 30px 60px -40px rgba(11, 31, 73, 0.4);
-}
-.ss-dress-card::before {
-  content: '';
-  position: absolute;
-  inset: 10px;
-  border: 1px solid rgba(180, 147, 104, 0.35);
-  border-radius: 21px;
-  pointer-events: none;
-}
-.ss-dress-figs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.ss-fig {
-  padding: 10px;
-  border: 1px solid rgba(29, 58, 138, 0.18);
-  border-radius: 999px 999px 18px 18px;
-  background: rgba(255, 255, 255, 0.55);
-}
-.ss-fig:nth-child(2) {
-  margin-top: 36px;
-}
-.ss-dress-copy h2 {
-  margin: 6px 0 10px;
-}
-.ss-lead {
-  margin: 0 0 22px;
-  color: var(--ink-soft);
-}
-.ss-swatches {
-  margin-top: 18px;
-}
-.ss-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #9a3b32;
-}
-.ss-label.ok {
-  color: #2e6b3f;
-}
-.ss-swatches ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.ss-swatches li {
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-}
-.ss-swatches small {
-  font-size: 12px;
-  color: var(--ink-soft);
-}
-.ss-swatch {
-  position: relative;
-  display: block;
-  width: 52px;
-  height: 52px;
-  border: 1px solid rgba(11, 31, 73, 0.18);
-  border-radius: 50%;
-  box-shadow: inset 0 -6px 12px rgba(0, 0, 0, 0.05);
-}
-/* tons proibidos: um traço atravessa a bolinha quando ela aparece */
-.ss-swatch.no::after {
-  content: '';
-  position: absolute;
-  left: -4px;
-  right: -4px;
-  top: 50%;
-  height: 2px;
-  border-radius: 2px;
-  background: #b3423a;
-  transform: rotate(-45deg) scaleX(0);
-  transition: transform 0.6s var(--d) var(--ease-out);
-}
-.visible .ss-swatch.no::after {
-  transform: rotate(-45deg) scaleX(1);
-}
-.ss-welcome .ss-swatch {
-  width: 34px;
-  height: 34px;
-  transform: scale(0.4);
-  opacity: 0;
-  transition:
-    transform 0.6s var(--d) var(--ease-out),
-    opacity 0.6s var(--d);
-}
-.visible .ss-welcome .ss-swatch {
-  transform: none;
-  opacity: 1;
-}
-.ss-note {
-  margin: 10px 0 0;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-/* inspirações: três looks em molduras de arco */
 .ss-looks {
-  max-width: 1080px;
-  margin: 46px auto 0;
-  text-align: center;
-}
-.ss-looks ul {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 22px;
-  margin: 14px 0 0;
+  max-width: 1080px;
+  margin: 0 auto;
   padding: 0;
   list-style: none;
 }
 .ss-looks li:nth-child(2) {
-  margin-top: 34px;
+  margin-top: 40px;
 }
 .ss-looks figure {
   margin: 0;
@@ -392,10 +247,9 @@ const open = ref(-1);
   display: block;
   overflow: hidden;
   aspect-ratio: 494 / 820;
-  border: 1px solid rgba(29, 58, 138, 0.16);
-  border-radius: 999px 999px 20px 20px;
+  border-radius: 999px 999px 18px 18px;
   background: #6d82a6;
-  box-shadow: 0 26px 50px -30px rgba(11, 31, 73, 0.55);
+  box-shadow: 0 16px 30px -22px rgba(11, 31, 73, 0.45);
 }
 .ss-looks img {
   width: 100%;
@@ -408,10 +262,84 @@ const open = ref(-1);
   transform: scale(1.05);
 }
 .ss-looks figcaption {
-  margin-top: 12px;
+  margin-top: 14px;
+  text-align: center;
   font-family: var(--script);
   font-style: italic;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
+  color: var(--navy);
+}
+
+/* faixa das cores: linhas finas, como os detalhes da cerimônia */
+.ss-colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 18px 48px;
+  max-width: 820px;
+  margin: 64px auto 0;
+  padding: 26px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.ss-colors-avoid {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.ss-colors-avoid > small {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-ink);
+}
+.ss-colors-avoid ul {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ss-colors-avoid li {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.ss-swatch {
+  position: relative;
+  display: block;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(11, 31, 73, 0.2);
+  border-radius: 50%;
+}
+/* um traço atravessa cada tom quando a faixa aparece */
+.ss-swatch::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: 50%;
+  height: 1.5px;
+  background: #b3423a;
+  transform: rotate(-45deg) scaleX(0);
+  transition: transform 0.6s var(--d) var(--ease-out);
+}
+.visible .ss-swatch::after {
+  transform: rotate(-45deg) scaleX(1);
+}
+.ss-colors-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.ss-colors-note b {
+  font-weight: 500;
   color: var(--navy);
 }
 
@@ -572,25 +500,17 @@ const open = ref(-1);
   .ss-tips {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .ss-dress-card {
-    grid-template-columns: 1fr;
-    gap: 26px;
-  }
-  .ss-dress-figs {
-    max-width: 380px;
-    margin: 0 auto;
-  }
 }
 @media (max-width: 620px) {
   .ss-tips {
     grid-template-columns: 1fr;
   }
   /* no celular, os looks deslizam para o lado */
-  .ss-looks ul {
+  .ss-looks {
     display: flex;
     gap: 14px;
-    margin: 14px -16px 0;
-    padding: 0 16px 8px;
+    margin: 0 -22px;
+    padding: 0 22px 8px;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
@@ -602,8 +522,14 @@ const open = ref(-1);
   .ss-looks li:nth-child(2) {
     margin-top: 0;
   }
-  .ss-dress {
-    padding: 20px 16px 80px;
+  .ss-colors {
+    flex-direction: column;
+    gap: 14px;
+    text-align: center;
+  }
+  .ss-colors-avoid {
+    flex-direction: column;
+    gap: 10px;
   }
   .ss-answer > div {
     padding: 0 18px 0 18px;
